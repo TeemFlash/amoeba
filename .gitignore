@@ -1,0 +1,15 @@
+node_modules/
+.expo/
+.gradle/
+.idea/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+local.properties
+*.keystore
+*.jks
+*.apk
+*.aab
+.DS_Store

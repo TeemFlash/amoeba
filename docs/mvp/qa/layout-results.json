@@ -1,0 +1,22 @@
+[
+  {
+    "width": 320,
+    "textScale": 1,
+    "horizontalOverflow": false
+  },
+  {
+    "width": 320,
+    "textScale": 2,
+    "horizontalOverflow": false
+  },
+  {
+    "width": 390,
+    "textScale": 1,
+    "horizontalOverflow": false
+  },
+  {
+    "width": 390,
+    "textScale": 2,
+    "horizontalOverflow": false
+  }
+]

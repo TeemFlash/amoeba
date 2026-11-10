@@ -1,0 +1,25 @@
+{
+  "checks": [
+    "empty history",
+    "empty form creates no entry",
+    "restored choice exposes checked state",
+    "draft survives reload",
+    "locale preserves draft",
+    "failed submit does not falsely succeed",
+    "retry completes navigation and saves once",
+    "declined cancel preserves record",
+    "Back after Keep does not reopen cancellation",
+    "confirmed cancellation persists",
+    "full event blocks continuation",
+    "cancelled event blocks continuation",
+    "event saved",
+    "active duplicate opens existing entry",
+    "new enrollment after cancellation",
+    "declined reset preserves history",
+    "confirmed reset",
+    "corrupt data preserved",
+    "error screen language works without storage overwrite",
+    "no browser runtime errors"
+  ],
+  "pageErrors": []
+}
