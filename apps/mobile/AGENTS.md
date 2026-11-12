@@ -6,6 +6,10 @@ This Expo React Native app follows the product boundary, exact domain API, stora
 
 This MVP uses the small typed in-app stack in `src/ui/navigation.ts`. Expo Router is intentionally not used: the approved Astra plan explicitly allows a typed custom stack and the app has no deep-link requirement. Preserve the visible Back button and Android BackHandler behavior when changing navigation.
 
+## User-authorized Firebase scope (2026-11-10)
+
+The user explicitly approved a new Firebase project, email/password and Google sign-in, and per-account saved applications. This overrides only the account/backend prohibition below for the Firebase Auth/Firestore implementation described in [`../../docs/mvp/FIREBASE-DESIGN.md`](../../docs/mvp/FIREBASE-DESIGN.md) and [`../../docs/mvp/FIREBASE-IMPLEMENTATION.md`](../../docs/mvp/FIREBASE-IMPLEMENTATION.md). Keep the legacy local demo available when Firebase configuration is absent. Project/Firestore and Auth providers are provisioned; live Email/Password/application web smoke passed. Interactive Google OAuth and native device behavior remain unverified; see [`../../docs/mvp/FIREBASE-PROVISIONING.md`](../../docs/mvp/FIREBASE-PROVISIONING.md). Never present emulator mode as live production evidence.
+
 ## Expo and package changes
 
 Read the Expo SDK major from `package.json` before changing Expo APIs or native packages. Consult the matching versioned Expo docs at `https://docs.expo.dev/versions/v58.0.0/` and the relevant React Native docs. Install native modules with `npx expo install <package>` and do not use `--force` or `--legacy-peer-deps`.
@@ -14,4 +18,4 @@ Read the Expo SDK major from `package.json` before changing Expo APIs or native 
 
 Run `npm test`, `npm run typecheck`, `npx expo lint`, `npm run export:web`, and `npx expo install --check` before handing off implementation work. Keep verification claims scoped to checks actually performed; web preview does not establish native device or screen-reader behavior.
 
-Do not add a backend, API calls, account flows, payments, real contact details, geolocation, or real service/event claims. Do not publish or run EAS build/submit/update for this local demo.
+Do not add services outside the user-authorized Firebase Auth/Firestore scope, payments, real contact details, geolocation, or real service/event claims. Do not publish or run EAS build/submit/update for this local demo.

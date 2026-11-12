@@ -1,6 +1,18 @@
 # Правила локального MVP — Astra
 
+> **Implementation override, 2026-11-10:** latest user instruction **“implement it”** authorizes implementing the accepted 30-frame Mobi design in the Expo app. [MOBI-IMPLEMENTATION](MOBI-IMPLEMENTATION.md) is the current executable contract for date/free-text note, four main tabs, welcome/preferences, real text-size setting, guest-to-account draft continuation, separate help/event steps and result screens, plus backward-compatible local/cloud validation and the narrowly necessary Firestore rules update. These explicit additions override older no-free-text/no-new-state constraints; preserve old data, UID isolation, existing Auth behavior, demo disclosure and unverified-native limitations. This is app implementation, not another static board.
+
+> **Scoped override, 2026-11-10:** пользователь явно запросил создание нового Firebase-проекта, email/password и Google Sign-In, а также сохранение заявок в аккаунте. Это разрешает Firebase Auth и Firestore только в объёме [FIREBASE-DESIGN](FIREBASE-DESIGN.md). Положения ниже о полностью локальном приложении описывают исходный MVP и сохраняются для режима без Firebase; они не запрещают реализацию этого явного запроса. Проект/Firestore и Auth providers настроены; live Email/Password и сохранение заявок прошли web smoke. Интерактивный Google OAuth и native устройства ещё не проверены. Состояние provisioning: [FIREBASE-PROVISIONING](FIREBASE-PROVISIONING.md). Astra независимо проверяет код и правила.
+
 Дата: 2026-11-09. Статус: исполнимое решение Astra для реализации Luna по текущему поручению пользователя. Это следующий узкий этап после исследования и UX-документов, а не заявление о запуске сервиса. Исходные материалы: [приоритеты](../ux/astra-priorities.md), [исследование](../ux/luna-research.md), [спецификация 002](../../specs/002-senior-mobile-ux/spec.md).
+
+### Переопределение названия — 2026-11-10
+
+По явному запросу пользователя название приложения заменено на **Mobi**. Это переопределяет прежнее имя «Помощь рядом» / «Жақыннан көмек» в заголовке и app name; исторические исследования и HUB-материалы сохраняются. Идентификатор Android `dev.enactus.seniorhelp.demo` и ключ данных `enactus-senior-demo:v1` не меняются.
+
+### Визуальное обновление по примеру пользователя — 2026-11-10
+
+Текущий запрос на дизайн для пожилых людей переопределяет прежнюю зелёную визуальную систему раздела 6. Актуальные голубые/лавандовые/кремовые цвета, крупная типографика, размеры элементов и план экранов закреплены в [MOBI-DESIGN.md](MOBI-DESIGN.md). Семантика демо, хранение и доступность остаются обязательными.
 
 ## 1. Результат и границы
 

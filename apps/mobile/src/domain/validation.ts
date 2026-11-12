@@ -1,5 +1,5 @@
-import { districtIds, eventIds, serviceIds, slotIds } from './catalog';
-import type { AppState, Entry, HelpDraft, Locale, Result } from './types';
+import { dateIds, districtIds, eventIds, serviceIds, slotIds } from './catalog';
+import type { AppState, Entry, HelpDraft, HelpFormStep, Locale, Result } from './types';
 
 const corrupt = (): Result<AppState> => ({ ok: false, error: { code: 'STORAGE_CORRUPT' } });
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -11,6 +11,9 @@ function parseDraft(value: unknown): HelpDraft | null | undefined {
   if (!isRecord(value) || !isId(value.operationId) || !serviceIds.has(value.serviceId as never)) return undefined;
   if (!(value.districtId === null || districtIds.has(value.districtId as never))) return undefined;
   if (!(value.slotId === null || slotIds.has(value.slotId as never))) return undefined;
+  if ('dateId' in value && !(value.dateId === null || dateIds.has(value.dateId as never))) return undefined;
+  if ('note' in value && (typeof value.note !== 'string' || value.note.length > 280)) return undefined;
+  if ('formStep' in value && !['district', 'date', 'time', 'note'].includes(value.formStep as string)) return undefined;
   if (value.step !== 'form' && value.step !== 'review') return undefined;
   if (value.step === 'review' && (!value.districtId || !value.slotId)) return undefined;
   return {
@@ -18,6 +21,9 @@ function parseDraft(value: unknown): HelpDraft | null | undefined {
     serviceId: value.serviceId as HelpDraft['serviceId'],
     districtId: value.districtId as HelpDraft['districtId'],
     slotId: value.slotId as HelpDraft['slotId'],
+    ...('dateId' in value ? { dateId: value.dateId as HelpDraft['dateId'] } : {}),
+    ...('note' in value ? { note: value.note as string } : {}),
+    ...('formStep' in value ? { formStep: value.formStep as HelpFormStep } : {}),
     step: value.step,
   };
 }
@@ -27,6 +33,9 @@ function parseEntry(value: unknown): Entry | undefined {
   const status = value.status;
   const cancelledAt = value.cancelledAt;
   if (status === 'saved-demo' ? cancelledAt !== null : status === 'cancelled-demo' ? !isIsoDate(cancelledAt) : true) return undefined;
+  const hasDate = Object.hasOwn(value, 'dateId');
+  const hasNote = Object.hasOwn(value, 'note');
+  if (value.kind === 'help' && (hasDate !== hasNote || hasDate && (!dateIds.has(value.dateId as never) || typeof value.note !== 'string' || value.note.length > 280))) return undefined;
   const base = {
     id: value.id as string,
     operationId: value.operationId,
@@ -35,7 +44,11 @@ function parseEntry(value: unknown): Entry | undefined {
     cancelledAt: cancelledAt as string | null,
   };
   if (value.kind === 'help' && serviceIds.has(value.serviceId as never) && districtIds.has(value.districtId as never) && slotIds.has(value.slotId as never)) {
-    return { ...base, kind: 'help', serviceId: value.serviceId as Entry & never, districtId: value.districtId as Entry & never, slotId: value.slotId as Entry & never } as Entry;
+    return {
+      ...base, kind: 'help', serviceId: value.serviceId as Entry & never,
+      districtId: value.districtId as Entry & never, slotId: value.slotId as Entry & never,
+      ...(hasDate ? { dateId: value.dateId as Entry & never, note: value.note as string } : {}),
+    } as Entry;
   }
   if (value.kind === 'event' && eventIds.has(value.eventId as never)) return { ...base, kind: 'event', eventId: value.eventId as Entry & never } as Entry;
   return undefined;

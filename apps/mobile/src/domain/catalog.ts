@@ -1,4 +1,4 @@
-import type { DemoEvent, DistrictId, EventId, Service, ServiceId, SlotId } from './types';
+import type { DateId, DemoEvent, DistrictId, EventId, Service, ServiceId, SlotId } from './types';
 
 export const services: readonly Service[] = [
   {
@@ -54,12 +54,27 @@ export const events: readonly DemoEvent[] = [
 export const districts: readonly { id: DistrictId; title: { ru: string; kz: string } }[] = [
   { id: 'demo-center', title: { ru: 'Демонстрационный центр', kz: 'Демонстрациялық орталық' } },
   { id: 'demo-left-bank', title: { ru: 'Демонстрационный левый берег', kz: 'Демонстрациялық сол жағалау' } },
+  { id: 'astana-esil', title: { ru: 'Есильский район (пример)', kz: 'Есіл ауданы (мысал)' } },
+  { id: 'astana-almaty', title: { ru: 'Алматинский район (пример)', kz: 'Алматы ауданы (мысал)' } },
+  { id: 'astana-saryarka', title: { ru: 'Район Сарыарка (пример)', kz: 'Сарыарқа ауданы (мысал)' } },
+  { id: 'astana-baikonur', title: { ru: 'Район Байконыр (пример)', kz: 'Байқоңыр ауданы (мысал)' } },
 ];
 export const slots: readonly { id: SlotId; title: { ru: string; kz: string } }[] = [
   { id: 'demo-morning', title: { ru: 'Учебный пример: утром', kz: 'Оқу мысалы: таңертең' } },
   { id: 'demo-afternoon', title: { ru: 'Учебный пример: после обеда', kz: 'Оқу мысалы: түстен кейін' } },
+  { id: 'demo-10-12', title: { ru: '10:00–12:00 (пример)', kz: '10:00–12:00 (мысал)' } },
+  { id: 'demo-14-16', title: { ru: '14:00–16:00 (пример)', kz: '14:00–16:00 (мысал)' } },
+];
+export const selectableDistricts = districts.filter((item) => item.id.startsWith('astana-'));
+export const selectableSlots = slots.filter((item) => item.id === 'demo-10-12' || item.id === 'demo-14-16');
+export const dates: readonly { id: DateId; title: { ru: string; kz: string } }[] = [
+  { id: 'demo-nov12', title: { ru: '12 ноября (пример)', kz: '12 қараша (мысал)' } },
+  { id: 'demo-nov14', title: { ru: '14 ноября (пример)', kz: '14 қараша (мысал)' } },
+  { id: 'demo-nov17', title: { ru: '17 ноября (пример)', kz: '17 қараша (мысал)' } },
+  { id: 'demo-nov19', title: { ru: '19 ноября (пример)', kz: '19 қараша (мысал)' } },
 ];
 export const serviceIds = new Set<ServiceId>(services.map((item) => item.id));
 export const eventIds = new Set<EventId>(events.map((item) => item.id));
 export const districtIds = new Set<DistrictId>(districts.map((item) => item.id));
 export const slotIds = new Set<SlotId>(slots.map((item) => item.id));
+export const dateIds = new Set<DateId>(dates.map((item) => item.id));

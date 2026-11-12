@@ -1,0 +1,7 @@
+# Mobi welcome artwork
+
+`mobi-welcome.png` is an original decorative illustration generated on 2026-11-10 with the built-in image generation tool for the user's reference-led redesign. It is bundled locally and depicts fictional people, not service providers or testimonials. No text is embedded in the image. Interface labels remain native, translated text.
+
+Generation prompt:
+
+> Create an original polished flat editorial illustration for an elder-friendly mobile app called Mobi, no text or lettering anywhere. A friendly older Kazakh/Central Asian woman with short silver hair and older man with silver hair sharing tea at a small round table, comfortable armchair, a small leafy plant, simple airy home/community room. Dignified, independent, warm adults in their late 60s, modern casual clothes. Style: premium contemporary wellness app vector-like illustration, smooth organic shapes, minimal face details, rounded silhouettes, subtly playful but not childish, no gradients, no outlines except tiny navy details. Palette pale sky blue #E5F3FC background, muted cornflower and periwinkle clothing, warm peach skin tones, mustard accents, dark navy details. Wide landscape 3:2 composition with two people centrally grouped, full visible bodies/chair/table, generous empty sky-blue margin, background very minimal with subtle large curved organic blue shapes. Artwork only, no phone frame, no UI mockup, no logos, no typography. Save a high quality illustration suitable as local app hero asset.

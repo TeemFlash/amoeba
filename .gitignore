@@ -13,3 +13,36 @@ local.properties
 *.apk
 *.aab
 .DS_Store
+/artifacts/
+
+# Local credentials and private configuration
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.mobileprovision
+service-account*.json
+serviceAccount*.json
+*firebase-adminsdk*.json
+google-services.json
+GoogleService-Info.plist
+.firebase/
+**/firebase-debug.log
+**/firestore-debug.log
+*.log
+
+# Local tool and generated output
+coverage/
+test-results/
+playwright-report/
+qa-results/
+firebase-qa-results/
+firebase-live-qa-results/
+.venv/
+venv/
+.vscode/settings.json
+.vscode/*.code-workspace
+/apps/mobile/design/exports/
+/apps/mobile/design/Mobi-UI-kit.zip
+/docs/mvp/qa/20??-??-??*/

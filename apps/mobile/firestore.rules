@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInAs(uid) { return request.auth != null && request.auth.uid == uid; }
+    function helpDateNotePair(data) {
+      return data.keys().hasAll(['dateId', 'note']) && data.dateId in ['demo-nov12', 'demo-nov14', 'demo-nov17', 'demo-nov19']
+        && data.note is string && data.note.size() <= 280
+        || !data.keys().hasAny(['dateId', 'note']);
+    }
+    function helpShape(data, operationId) {
+      return data.keys().hasAll(['schemaVersion', 'id', 'operationId', 'kind', 'status', 'serviceId', 'districtId', 'slotId', 'createdAt', 'cancelledAt'])
+        && data.keys().hasOnly(['schemaVersion', 'id', 'operationId', 'kind', 'status', 'serviceId', 'districtId', 'slotId', 'createdAt', 'cancelledAt', 'dateId', 'note'])
+        && helpDateNotePair(data)
+        && data.schemaVersion == 1 && data.id == 'DEMO-' + operationId && data.operationId == operationId
+        && operationId.matches('^[A-Za-z0-9_-]{1,128}$')
+        && data.kind == 'help' && data.status == 'saved-demo' && data.createdAt == request.time && data.cancelledAt == null
+        && data.serviceId in ['groceries', 'home-help', 'digital-help']
+        && data.districtId in ['demo-center', 'demo-left-bank', 'astana-esil', 'astana-almaty', 'astana-saryarka', 'astana-baikonur']
+        && data.slotId in ['demo-morning', 'demo-afternoon', 'demo-10-12', 'demo-14-16'];
+    }
+    function eventShape(data, operationId) {
+      return data.keys().hasAll(['schemaVersion', 'id', 'operationId', 'kind', 'status', 'eventId', 'createdAt', 'cancelledAt'])
+        && data.keys().hasOnly(['schemaVersion', 'id', 'operationId', 'kind', 'status', 'eventId', 'createdAt', 'cancelledAt'])
+        && data.schemaVersion == 1 && data.id == 'DEMO-' + operationId && data.operationId == operationId
+        && operationId.matches('^[A-Za-z0-9_-]{1,128}$')
+        && data.kind == 'event' && data.status == 'saved-demo' && data.createdAt == request.time && data.cancelledAt == null
+        && data.eventId in ['tea', 'walk-full', 'club-cancelled']
+        && data.eventId == 'tea'
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)/activeEvents/$(data.eventId)).data.operationId == operationId
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)/activeEvents/$(data.eventId)).data.applicationId == data.id;
+    }
+    function validCreate(data, operationId) {
+      return data.kind == 'help' ? helpShape(data, operationId) : data.kind == 'event' && eventShape(data, operationId);
+    }
+    function validCancel(operationId) {
+      return resource.data.status == 'saved-demo' && request.resource.data.status == 'cancelled-demo'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
+        && request.resource.data.cancelledAt == request.time
+        && (resource.data.kind != 'event'
+          || !existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)/activeEvents/$(resource.data.eventId))
+          || getAfter(/databases/$(database)/documents/users/$(request.auth.uid)/activeEvents/$(resource.data.eventId)).data.operationId != operationId);
+    }
+
+    match /users/{uid}/applications/{operationId} {
+      allow get, list: if signedInAs(uid);
+      allow create: if signedInAs(uid) && validCreate(request.resource.data, operationId);
+      allow update: if signedInAs(uid) && validCancel(operationId);
+      allow delete: if false;
+    }
+    match /users/{uid}/activeEvents/{eventId} {
+      allow get, list: if signedInAs(uid);
+      allow create: if signedInAs(uid)
+        && request.resource.data.keys().hasAll(['operationId', 'applicationId'])
+        && request.resource.data.keys().hasOnly(['operationId', 'applicationId'])
+        && request.resource.data.operationId is string
+        && request.resource.data.applicationId == 'DEMO-' + request.resource.data.operationId
+        && getAfter(/databases/$(database)/documents/users/$(uid)/applications/$(request.resource.data.operationId)).data.kind == 'event'
+        && getAfter(/databases/$(database)/documents/users/$(uid)/applications/$(request.resource.data.operationId)).data.eventId == eventId
+        && getAfter(/databases/$(database)/documents/users/$(uid)/applications/$(request.resource.data.operationId)).data.status == 'saved-demo';
+      allow update: if false;
+      allow delete: if signedInAs(uid)
+        && getAfter(/databases/$(database)/documents/users/$(uid)/applications/$(resource.data.operationId)).data.status == 'cancelled-demo';
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
