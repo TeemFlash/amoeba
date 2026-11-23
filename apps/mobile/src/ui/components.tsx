@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from 'react';
 import { AccessibilityInfo, Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { Locale } from '../domain/types';
-import { t, type TranslationKey } from '../i18n';
+import type { TranslationKey } from '../i18n';
 import { theme } from './theme';
 import { Icon, type IconName } from './icons';
 
@@ -23,9 +22,6 @@ export function ActionRow({ title, description, icon, onPress, accessibilityLabe
     <View style={styles.actionCopy}><Text allowFontScaling style={styles.actionTitle}>{title}</Text>{description ? <Text allowFontScaling style={styles.actionDescription}>{description}</Text> : null}</View>
     <Icon name="arrow-right" color={theme.colors.primary} size={20} />
   </Pressable>;
-}
-export function Notice({ locale }: { locale: Locale }) {
-  return <View accessibilityRole="text" style={styles.notice}><Text allowFontScaling style={styles.noticeText}>{t(locale, 'demoNotice')}</Text></View>;
 }
 export function Screen({ children, footer }: PropsWithChildren<{ footer?: ReactNode }>) {
   return <View style={styles.screen}><View style={styles.measure}>{children}</View>{footer ? <View style={styles.measure}>{footer}</View> : null}</View>;
@@ -149,7 +145,6 @@ const styles = StyleSheet.create({
   actionCompact: { minHeight: 60, paddingVertical: 8 },
   action_blue: { backgroundColor: 'transparent' }, action_yellow: { backgroundColor: 'transparent' }, action_peach: { backgroundColor: 'transparent' },
   actionCopy: { flex: 1, gap: 3, minWidth: 0 }, actionTitle: { color: theme.colors.text, fontSize: 20, lineHeight: 27, fontWeight: '600' }, actionDescription: { color: theme.colors.secondary, fontSize: 17, lineHeight: 24 },
-  notice: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 2, paddingVertical: 4 }, noticeText: { flex: 1, flexShrink: 1, color: theme.colors.secondary, fontSize: 16, lineHeight: 23, fontWeight: '600' },
   button: { minHeight: theme.minButtonHeight, flexDirection: 'row', gap: 10, paddingVertical: 14, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: 'transparent', borderRadius: theme.radius.button, justifyContent: 'center', alignItems: 'center' },
   primary: { backgroundColor: theme.colors.primary }, secondary: { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, quiet: { backgroundColor: 'transparent', borderColor: 'transparent' }, danger: { backgroundColor: theme.colors.dangerSurface },
   disabled: { opacity: 0.55 }, pressed: { opacity: 0.83 }, buttonText: { color: theme.colors.text, fontSize: theme.type.body, lineHeight: 26, textAlign: 'center', fontWeight: '700', flexShrink: 1 }, primaryButtonText: { color: theme.colors.white }, dangerButtonText: { color: theme.colors.danger },

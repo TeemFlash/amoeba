@@ -7,16 +7,20 @@ import { transition } from './src/domain/transitions';
 import type { AppState, Command, ErrorCode, EventId, Locale, Repository, Result, ServiceId, Transition } from './src/domain/types';
 import { t, type TranslationKey } from './src/i18n';
 import { AboutScreen } from './src/screens/AboutScreen';
+import { CityScreen } from './src/screens/CityScreen';
+import { SignIn1 } from './components/ui/modern-stunning-sign-in';
+import { cityName, type CityId } from './src/domain/cities';
+import { loadCityPreference, saveCityPreference } from './src/storage/cityPreference';
 import { EntriesScreen } from './src/screens/EntriesScreen';
 import { EventScreens } from './src/screens/EventScreens';
 import { HelpScreens } from './src/screens/HelpScreens';
-import { Button, ErrorNotice, Heading, Notice, SceneTransition, Screen } from './src/ui/components';
+import { Button, ErrorNotice, Heading, SceneTransition, Screen } from './src/ui/components';
 import { Icon } from './src/ui/icons';
-import { initialRoute, type Route } from './src/ui/navigation';
+import { initialRoute, startupRoute, type Route } from './src/ui/navigation';
 import { theme } from './src/ui/theme';
 
 function selectedSection(active: Route['name']) {
-  return ['entries', 'entry', 'cancel-confirm'].includes(active) ? 'entries' : ['events', 'event-terms', 'event-review'].includes(active) ? 'events' : ['about', 'reset-confirm'].includes(active) ? null : 'help-catalog';
+  return ['entries', 'entry', 'cancel-confirm'].includes(active) ? 'entries' : ['events', 'event-terms', 'event-review'].includes(active) ? 'events' : ['about', 'reset-confirm', 'cities', 'sign-in'].includes(active) ? null : 'help-catalog';
 }
 
 function newOperationId() {
@@ -42,7 +46,7 @@ function AppContent() {
   const [repository] = useState<Repository>(() => createRepository(asyncStorage, () => new Date().toISOString()));
   const [appState, setAppState] = useState<AppState | null>(null);
   const stateRef = useRef<AppState | null>(null);
-  const [routeStack, setRouteStack] = useState<Route[]>([initialRoute]);
+  const [routeStack, setRouteStack] = useState<Route[]>([startupRoute]);
   const [bootError, setBootError] = useState<ErrorCode | null>(null);
   const [actionError, setActionError] = useState<ErrorCode | null>(null);
   const [pendingCommands, setPendingCommands] = useState<Command[]>([]);
@@ -50,9 +54,24 @@ function AppContent() {
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [bootLocale, setBootLocale] = useState<Locale>('ru');
+  const [cityId, setCityId] = useState<CityId>('astana');
+  const [cityPreferenceError, setCityPreferenceError] = useState<string | null>(null);
+  const [cityPreferenceReady, setCityPreferenceReady] = useState(false);
+  const [citySaving, setCitySaving] = useState(false);
+  const citySavingRef = useRef(false);
   const route = routeStack[routeStack.length - 1] ?? initialRoute;
   const locale = appState?.locale ?? 'ru';
   const appRef = repository;
+  useEffect(() => {
+    let active = true;
+    void loadCityPreference(asyncStorage).then(({ cityId: stored, error }) => {
+      if (!active) return;
+      if (stored) setCityId(stored);
+      if (error) setCityPreferenceError(error === 'corrupt' ? 'cityCorruptError' : 'cityReadError');
+      setCityPreferenceReady(true);
+    }).catch(() => { if (active) { setCityPreferenceError('cityReadError'); setCityPreferenceReady(true); } });
+    return () => { active = false; };
+  }, []);
   const scrollRef = useRef<React.ElementRef<typeof ScrollView>>(null);
   const lastScreen = useRef(JSON.stringify(route));
   const scrollPositions = useRef<Record<string, number>>({});
@@ -91,7 +110,7 @@ function AppContent() {
     const result = await appRef.load();
     if (result.ok) {
       commit(result.value);
-      setRouteStack([initialRoute]);
+      setRouteStack([startupRoute]);
     } else setBootError(result.error.code);
   }, [appRef, commit]);
   useEffect(() => {
@@ -100,24 +119,39 @@ function AppContent() {
       if (!active) return;
       if (result.ok) {
         commit(result.value);
-        setRouteStack([initialRoute]);
+        setRouteStack([startupRoute]);
       } else setBootError(result.error.code);
     });
     return () => { active = false; };
   }, [appRef, commit]);
 
   const navigate = useCallback((next: Route) => {
+    if (citySavingRef.current) return;
     setActionError(null);
     setRouteStack((stack) => [...stack, next]);
   }, []);
   const goToRoot = useCallback((next: Route) => {
+    if (citySavingRef.current) return;
     setActionError(null);
     setRouteStack([next]);
   }, []);
   const goBack = useCallback(() => {
+    if (citySavingRef.current) return;
     setActionError(null);
     setRouteStack((stack) => stack.length > 1 ? stack.slice(0, -1) : [initialRoute]);
   }, []);
+  const chooseCity = useCallback(async (next: CityId) => {
+    if (!cityPreferenceReady || citySavingRef.current || route.name !== 'cities') return;
+    citySavingRef.current = true;
+    setCitySaving(true);
+    try {
+      const error = await saveCityPreference(asyncStorage, next);
+      if (error) { setCityPreferenceError(error === 'corrupt' ? 'cityCorruptError' : error === 'read' ? 'cityReadError' : 'cityWriteError'); return; }
+      setCityId(next);
+      setCityPreferenceError(null);
+      setRouteStack((stack) => stack[stack.length - 1]?.name === 'cities' ? stack.slice(0, -1) : stack);
+    } finally { citySavingRef.current = false; setCitySaving(false); }
+  }, [cityPreferenceReady, route.name]);
 
   const completeCommand = useCallback((command: Command, result: Transition, before: AppState) => {
     if ((command.type === 'submitHelp' || command.type === 'enrollEvent') && result.entryId) {
@@ -240,7 +274,7 @@ function AppContent() {
       setPendingCommands([]);
       setBootError(null);
       setActionError(null);
-      setRouteStack([initialRoute]);
+      setRouteStack([startupRoute]);
       return true;
     }
     setActionError(result.error.code);
@@ -249,6 +283,7 @@ function AppContent() {
 
   useEffect(() => {
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (citySavingRef.current) return true;
       if (routeStack.length > 1) { goBack(); return true; }
       return false;
     });
@@ -261,8 +296,7 @@ function AppContent() {
       <StatusBar barStyle="dark-content" />
       <ScrollView style={styles.pageScroll} contentContainerStyle={styles.pageContent}>
         <View style={styles.pageMeasure}>
-          <Header locale={loadingLocale} onLocale={setBootLocale} canBack={false} goBack={() => {}} disabled={busy} />
-          <Notice locale={loadingLocale} />
+          <Header locale={loadingLocale} cityId={cityId} citySaving={false} onCity={() => navigate({ name: 'cities' })} onLocale={setBootLocale} canBack={false} goBack={() => {}} hideCity={route.name === 'sign-in'} cityDisabled />
           {bootError ? <Screen>
             <Heading>{t(loadingLocale, bootError === 'STORAGE_CORRUPT' ? 'corruptTitle' : 'loadingErrorTitle')}</Heading>
             <Text style={styles.body}>{t(loadingLocale, bootError === 'STORAGE_CORRUPT' ? 'corruptBody' : 'loadingErrorBody')}</Text>
@@ -279,45 +313,49 @@ function AppContent() {
   const onLocale = (nextLocale: Locale) => { void runCommand({ type: 'setLocale', locale: nextLocale }); };
   const onNavigate = (next: Route) => navigate(next);
   const isTop = routeStack.length > 1;
+  const startupAuthFlow = routeStack[0]?.name === 'sign-in';
   let content: React.ReactNode = null;
   const interactionLocked = busy || pendingCommands.length > 0;
-  if (['help-catalog', 'help-terms', 'help-form', 'help-review'].includes(route.name)) content = <HelpScreens draftPending={pendingCommands.some((command) => command.type === 'startHelp' || command.type === 'editHelp' || command.type === 'setDraftStep')} locale={locale} state={appState} route={route} command={runCommand} navigate={onNavigate} begin={beginHelp} submit={() => void submitHelp()} busy={busy} locked={interactionLocked} />;
+  if (route.name === 'cities') content = <CityScreen disabled={!cityPreferenceReady || citySaving} locale={locale} selectedCity={cityId} error={cityPreferenceError ? t(locale, cityPreferenceError as TranslationKey) : null} choose={(id) => void chooseCity(id)} cancel={goBack} />;
+  else if (['help-catalog', 'help-terms', 'help-form', 'help-review'].includes(route.name)) content = <HelpScreens cityId={cityId} draftPending={pendingCommands.some((command) => command.type === 'startHelp' || command.type === 'editHelp' || command.type === 'setDraftStep')} locale={locale} state={appState} route={route} command={runCommand} navigate={onNavigate} begin={beginHelp} submit={() => void submitHelp()} busy={busy} locked={interactionLocked} />;
   else if (['events', 'event-terms', 'event-review'].includes(route.name)) content = <EventScreens locale={locale} route={route} state={appState} navigate={onNavigate} begin={beginEvent} submit={() => void submitEvent()} busy={busy} locked={interactionLocked} />;
+  else if (route.name === 'sign-in') content = <SignIn1 locale={locale} onContinue={() => goToRoot(initialRoute)} onAbout={() => navigate({ name: 'about' })} />;
   else if (['entries', 'entry', 'cancel-confirm'].includes(route.name)) content = <EntriesScreen locale={locale} route={route} state={appState} navigate={onNavigate} dismiss={goBack} cancel={() => void cancelCurrent()} busy={busy} locked={interactionLocked} />;
   else content = <AboutScreen locale={locale} route={route} navigate={onNavigate} dismiss={goBack} confirmReset={confirmReset} confirmDiscard={discardDraft} confirmReplace={replaceDraft} busy={busy} locked={interactionLocked} />;
 
   return <SafeAreaView style={styles.root}>
     <StatusBar barStyle="dark-content" />
     <View style={[styles.workspace, wide && styles.workspaceWide]}>
-    {wide ? <TabBar locale={locale} active={route.name} navigate={goToRoot} vertical /> : null}
+    {wide && !startupAuthFlow ? <TabBar locale={locale} active={route.name} navigate={goToRoot} vertical /> : null}
     <ScrollView ref={scrollRef} scrollEventThrottle={16} onScroll={(event) => { scrollPositions.current[routeKey] = event.nativeEvent.contentOffset.y; }} style={styles.pageScroll} contentContainerStyle={styles.pageContent} keyboardShouldPersistTaps="handled">
       <View style={styles.pageMeasure}>
-        <Header onAbout={() => navigate({ name: 'about' })} locale={locale} onLocale={onLocale} canBack={isTop} goBack={goBack} disabled={busy || pendingCommands.length > 0} />
-        <Notice locale={locale} />
+        <Header locale={locale} cityId={cityId} citySaving={citySaving} onCity={() => navigate({ name: 'cities' })} onLocale={onLocale} canBack={isTop} goBack={goBack} hideCity={route.name === 'sign-in'} cityDisabled={!cityPreferenceReady || citySaving || busy || pendingCommands.length > 0} disabled={busy || pendingCommands.length > 0 || citySaving} />
+        {cityPreferenceError && route.name !== 'cities' ? <View style={styles.retryRow}><ErrorNotice>{t(locale, cityPreferenceError as TranslationKey)}</ErrorNotice></View> : null}
         {pendingCommands.length > 0 ? <View style={styles.retryRow}>
           <ErrorNotice>{t(locale, 'storageWriteError')}</ErrorNotice>
           <Button label={t(locale, 'retry')} kind="secondary" disabled={busy} onPress={() => void retryPending()} />
         </View> : null}
         {actionError && pendingCommands.length === 0 ? <View style={styles.retryRow}><ErrorNotice>{currentError}</ErrorNotice></View> : null}
         <View nativeID="main-panel" {...(Platform.OS === 'web' && selectedSection(route.name) ? { role: 'tabpanel' as const, 'aria-labelledby': `tab-${selectedSection(route.name)}` } : {})}><SceneTransition routeKey={JSON.stringify(route)}>{content}</SceneTransition></View>
+        {route.name === 'help-catalog' ? <Button label={t(locale, 'tabAbout')} kind="quiet" onPress={() => navigate({ name: 'about' })} /> : null}
       </View>
     </ScrollView>
     </View>
-    {!wide ? <TabBar locale={locale} active={route.name} navigate={goToRoot} /> : null}
+    {!wide && !startupAuthFlow ? <TabBar locale={locale} active={route.name} navigate={goToRoot} /> : null}
   </SafeAreaView>;
 }
 
-function Header({ locale, onLocale, canBack, goBack, onAbout, disabled = false }: { locale: Locale; onLocale: (locale: Locale) => void; canBack: boolean; goBack: () => void; onAbout?: () => void; disabled?: boolean }) {
+function Header({ locale, cityId, citySaving, onCity, onLocale, canBack, goBack, hideCity = false, cityDisabled = false, disabled = false }: { locale: Locale; cityId: CityId; citySaving: boolean; onCity: () => void; onLocale: (locale: Locale) => void; canBack: boolean; goBack: () => void; hideCity?: boolean; cityDisabled?: boolean; disabled?: boolean }) {
   return <View style={styles.header}>
     <View style={styles.brandRow}>
       <View style={styles.brandMark} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Icon name="home" color={theme.colors.white} size={22} /></View>
       <View style={styles.brand}>
         <Text allowFontScaling style={styles.brandName}>{t(locale, 'appName')}</Text>
       </View>
-      {onAbout ? <Pressable accessibilityRole="button" accessibilityLabel={t(locale, 'tabAbout')} onPress={onAbout} style={styles.infoButton}><Icon name="info" size={24} color={theme.colors.secondary} /></Pressable> : null}
     </View>
     <View style={styles.headerTools}>
-      {canBack ? <Pressable accessibilityRole="button" accessibilityLabel={t(locale, 'back')} onPress={goBack} style={styles.back}><Icon name="back" color={theme.colors.primary} size={22} /><Text style={styles.backText}>{t(locale, 'back')}</Text></Pressable> : <Text style={styles.city}>{t(locale, 'city')}</Text>}
+      {canBack ? <Pressable accessibilityRole="button" accessibilityLabel={t(locale, 'back')} accessibilityState={{ disabled: citySaving }} disabled={citySaving} onPress={goBack} style={styles.back}><Icon name="back" color={theme.colors.primary} size={22} /><Text style={styles.backText}>{t(locale, 'back')}</Text></Pressable> : <View style={styles.backSpacer} />}
+      {!hideCity ? <Pressable accessibilityRole="button" accessibilityLabel={`${t(locale, 'chooseCity')}: ${cityName(cityId, locale)}`} accessibilityState={{ selected: false, disabled: cityDisabled }} disabled={cityDisabled} onPress={onCity} style={[styles.cityButton, cityDisabled && styles.disabled]}><Text allowFontScaling style={styles.city}>{cityName(cityId, locale)}</Text></Pressable> : null}
       <View style={styles.languages}>
         {(['ru', 'kz'] as const).map((value) => <Pressable key={value} accessibilityRole="button" accessibilityLabel={value === 'ru' ? t(locale, 'languageRu') : t(locale, 'languageKz')} accessibilityState={{ selected: locale === value, disabled }} disabled={disabled} onPress={() => onLocale(value)} style={[styles.languageButton, locale === value && styles.languageSelected, disabled && styles.disabled]}>
           <Text style={[styles.languageText, locale === value && styles.languageTextSelected]}>{value.toUpperCase()}</Text>
@@ -356,7 +394,6 @@ const styles = StyleSheet.create({
   sideTab: { flex: 0, minHeight: 60, alignItems: 'stretch', paddingHorizontal: 16 },
   sideTabContent: { flexDirection: 'row', justifyContent: 'flex-start', gap: 12 },
   sideTabText: { fontSize: 18, lineHeight: 26, textAlign: 'left', flexShrink: 1 },
-  infoButton: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   pageScroll: { flex: 1, minHeight: 0 },
   pageContent: { alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 36, flexGrow: 1 },
   pageMeasure: { width: '100%', maxWidth: theme.maxContentWidth, gap: 12 },
@@ -366,7 +403,9 @@ const styles = StyleSheet.create({
   brandMark: { width: 42, height: 42, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary },
   brand: { flexGrow: 1, flexShrink: 1, minWidth: 110, gap: 1 },
   brandName: { color: theme.colors.text, fontSize: 20, lineHeight: 26, fontWeight: '700' },
-  city: { color: theme.colors.secondary, fontSize: 16, lineHeight: 21 },
+  city: { color: theme.colors.secondary, fontSize: 16, lineHeight: 21, textDecorationLine: 'underline' },
+  cityButton: { minWidth: 56, minHeight: 56, paddingHorizontal: 10, justifyContent: 'center', borderRadius: 8 },
+  backSpacer: { minHeight: 48 },
   back: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'center', paddingHorizontal: 4 },
   backText: { color: theme.colors.primary, fontSize: 16, lineHeight: 23, fontWeight: '700' },
   languages: { flexDirection: 'row', gap: 8 },

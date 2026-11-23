@@ -1,5 +1,6 @@
 import { View, StyleSheet } from 'react-native';
 import { districts, services, slots } from '../domain/catalog';
+import type { CityId } from '../domain/cities';
 import type { AppState, Command, Locale, Result, ServiceId, Transition } from '../domain/types';
 import { t } from '../i18n';
 import { ActionRow, Button, Card, Choice, ChoiceGroup, ErrorNotice, Heading, KeyValue, Label, Screen } from '../ui/components';
@@ -9,8 +10,8 @@ import type { Route } from '../ui/navigation';
 
 const serviceIcons: Record<ServiceId, IconName> = { groceries: 'basket', 'home-help': 'home', 'digital-help': 'phone' };
 
-type Props = { locale: Locale; state: AppState; route: Route; command: (command: Command) => Promise<Result<Transition>>; navigate: (route: Route) => void; error?: string | null; begin?: (id: ServiceId) => void; submit?: () => void; busy?: boolean; locked?: boolean; draftPending?: boolean };
-export function HelpScreens({ locale, state, route, command, navigate, error, begin, submit, busy = false, locked = busy, draftPending = false }: Props) {
+type Props = { locale: Locale; cityId?: CityId; state: AppState; route: Route; command: (command: Command) => Promise<Result<Transition>>; navigate: (route: Route) => void; error?: string | null; begin?: (id: ServiceId) => void; submit?: () => void; busy?: boolean; locked?: boolean; draftPending?: boolean };
+export function HelpScreens({ locale, cityId = 'astana', state, route, command, navigate, error, begin, submit, busy = false, locked = busy, draftPending = false }: Props) {
   const draft = state.draft;
   if (route.name === 'help-catalog') return <Screen>
     <View style={styles.screenLead}><Heading>{t(locale, 'helpCatalogTitle')}</Heading></View>
@@ -35,6 +36,7 @@ export function HelpScreens({ locale, state, route, command, navigate, error, be
   if (route.name === 'help-form') return <Screen>
     {draft ? <>
       <View style={styles.screenLead}><Heading>{t(locale, 'selectDistrict')}</Heading></View>
+      {cityId !== 'astana' ? <Label muted>{t(locale, 'helpFormCityNote')}</Label> : null}
       <ChoiceGroup label={t(locale, 'selectDistrict')}>{districts.map((item) => <Choice key={item.id} label={item.title[locale]} selected={draft.districtId === item.id} onPress={() => void command({ type: 'editHelp', patch: { districtId: item.id } })} disabled={locked} />)}</ChoiceGroup>
       <View style={[styles.screenLead, styles.timeLead]}><Heading level="section">{t(locale, 'selectTime')}</Heading></View>
       <ChoiceGroup label={t(locale, 'selectTime')}>{slots.map((item) => <Choice key={item.id} label={item.title[locale]} selected={draft.slotId === item.id} onPress={() => void command({ type: 'editHelp', patch: { slotId: item.id } })} disabled={locked} />)}</ChoiceGroup>

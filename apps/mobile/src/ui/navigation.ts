@@ -14,11 +14,14 @@ export type Route =
   | { name: 'entry'; entryId: string }
   | { name: 'cancel-confirm'; entryId: string }
   | { name: 'about' }
+  | { name: 'cities' }
+  | { name: 'sign-in' }
   | { name: 'discard-confirm' }
   | { name: 'replace-confirm'; serviceId: ServiceId }
   | { name: 'reset-confirm' };
 
 export const initialRoute: Route = { name: 'help-catalog' };
+export const startupRoute: Route = { name: 'sign-in' };
 export const routeTitle = (route: Route): TranslationKey => {
   switch (route.name) {
     case 'home': return 'homeTitle';
@@ -33,6 +36,8 @@ export const routeTitle = (route: Route): TranslationKey => {
     case 'entry': return 'entryDetails';
     case 'cancel-confirm': return 'confirmCancelTitle';
     case 'about': return 'aboutTitle';
+    case 'cities': return 'chooseCity';
+    case 'sign-in': return 'signIn';
     case 'discard-confirm': return 'confirmDiscardTitle';
     case 'replace-confirm': return 'confirmReplaceTitle';
     case 'reset-confirm': return 'confirmReset';

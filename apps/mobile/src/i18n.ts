@@ -1,8 +1,12 @@
 import type { Locale } from './domain/types';
 
 const ru = {
-  appName: 'Помощь рядом', city: 'Астана',
-  demoNotice: 'Демо · ничего не отправляется',
+  appName: 'Помощь рядом',
+  chooseCity: 'Выберите город', citySearch: 'Поиск по городам Казахстана', citySearchPlaceholder: 'Введите название города', cityNoResults: 'Город не найден.',
+  cityDemoExplanation: 'Пока доступны только примеры для Астаны.',
+  cityReadError: 'Не удалось прочитать сохранённый город. Выбор не изменён.', cityWriteError: 'Не удалось сохранить город. Выбор не изменён.', cityCorruptError: 'Сохранённый город не распознан и не был перезаписан.',
+  helpFormCityNote: 'Районы в этом примере относятся к Астане.',
+  signIn: 'Войти', cancel: 'Отмена',
   tabHome: 'Главная', tabHelp: 'Помощь', tabEvents: 'Встречи', tabEntries: 'Мои записи', tabAbout: 'Об приложении',
   homeTitle: 'Главная', homeIntro: 'Выберите раздел.',
   helpPath: 'Бытовая помощь', helpPathBody: 'Варианты помощи по дому.',
@@ -24,7 +28,7 @@ const ru = {
   next: 'Далее', selectDistrict: 'Выберите район', selectTime: 'Выберите время',
   districtCenter: 'Центр', districtLeft: 'Левый берег',
   timeMorning: 'Утром', timeAfternoon: 'После обеда',
-  reviewTitle: 'Проверьте выбор', reviewHelpIntro: 'Запись останется на этом устройстве.',
+  reviewTitle: 'Проверьте выбор', reviewHelpIntro: 'Запись останется на этом устройстве и никуда не отправится.',
   change: 'Изменить выбор', saveDemo: 'Сохранить в демо', saving: 'Сохраняем…',
   entrySavedTitle: 'Сохранено в демо', entrySavedBody: 'Запись сохранена на устройстве и никуда не отправлена.',
   entryNotSent: 'Только на этом устройстве', entryStatusSaved: 'Сохранено',
@@ -68,8 +72,12 @@ const ru = {
 } as const;
 
 const kz: Record<keyof typeof ru, string> = {
-  appName: 'Жақыннан көмек', city: 'Астана',
-  demoNotice: 'Демо · ештеңе жіберілмейді',
+  appName: 'Жақыннан көмек',
+  chooseCity: 'Қаланы таңдаңыз', citySearch: 'Қазақстан қалаларын іздеу', citySearchPlaceholder: 'Қала атауын енгізіңіз', cityNoResults: 'Қала табылмады.',
+  cityDemoExplanation: 'Әзірге тек Астанаға арналған мысалдар бар.',
+  cityReadError: 'Сақталған қаланы оқу мүмкін болмады. Таңдау өзгертілмеді.', cityWriteError: 'Қаланы сақтау мүмкін болмады. Таңдау өзгертілмеді.', cityCorruptError: 'Сақталған қала танылмады және қайта жазылған жоқ.',
+  helpFormCityNote: 'Бұл мысалдағы аудандар Астанаға жатады.',
+  signIn: 'Кіру', cancel: 'Болдырмау',
   tabHome: 'Басты бет', tabHelp: 'Көмек', tabEvents: 'Кездесулер', tabEntries: 'Жазбалар', tabAbout: 'Қолданба туралы',
   homeTitle: 'Басты бет', homeIntro: 'Бөлімді таңдаңыз.',
   helpPath: 'Тұрмыстық көмек', helpPathBody: 'Үй көмегінің нұсқалары.',
@@ -91,7 +99,7 @@ const kz: Record<keyof typeof ru, string> = {
   next: 'Әрі қарай', selectDistrict: 'Ауданды таңдаңыз', selectTime: 'Уақытты таңдаңыз',
   districtCenter: 'Орталық', districtLeft: 'Сол жағалау',
   timeMorning: 'Таңертең', timeAfternoon: 'Түстен кейін',
-  reviewTitle: 'Таңдауды тексеріңіз', reviewHelpIntro: 'Жазба осы құрылғыда қалады.',
+  reviewTitle: 'Таңдауды тексеріңіз', reviewHelpIntro: 'Жазба осы құрылғыда қалады және ешқайда жіберілмейді.',
   change: 'Таңдауды өзгерту', saveDemo: 'Демода сақтау', saving: 'Сақталуда…',
   entrySavedTitle: 'Демода сақталды', entrySavedBody: 'Жазба құрылғыда сақталды, ешқайда жіберілмеді.',
   entryNotSent: 'Тек осы құрылғыда', entryStatusSaved: 'Сақталды',
