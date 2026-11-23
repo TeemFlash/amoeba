@@ -18,7 +18,7 @@ export type Route =
   | { name: 'replace-confirm'; serviceId: ServiceId }
   | { name: 'reset-confirm' };
 
-export const initialRoute: Route = { name: 'home' };
+export const initialRoute: Route = { name: 'help-catalog' };
 export const routeTitle = (route: Route): TranslationKey => {
   switch (route.name) {
     case 'home': return 'homeTitle';

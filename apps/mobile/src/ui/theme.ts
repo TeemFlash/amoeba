@@ -1,12 +1,14 @@
 export const theme = {
   colors: {
-    background: '#F7F6F0', surface: '#FFFFFF', text: '#172B24', secondary: '#45574E',
-    primary: '#245A43', border: '#C8D3CC', danger: '#A12B24', dangerSurface: '#FCEFEB',
-    softGreen: '#EAF1EB', muted: '#F1F2EC',
+    background: '#F7F5EF', surface: '#FFFFFF', text: '#172820', secondary: '#52635A',
+    primary: '#244F91', primaryDark: '#183A70', border: '#D8DED9',
+    paleBlue: '#EFF3F8', softBlue: '#E2EAF4', warmYellow: '#F5E8C8', softYellow: '#FBF6E9',
+    peach: '#F2E2D8', softPeach: '#FAF1EB', danger: '#9C3029', dangerSurface: '#FFF0ED',
+    muted: '#E9ECE8', white: '#FFFFFF',
   },
-  spacing: { xs: 8, sm: 12, md: 16, lg: 24, xl: 32 },
-  radius: { card: 20, button: 14, pill: 24 },
-  type: { body: 18, caption: 16, title: 28, heading: 22 },
+  spacing: { xs: 8, sm: 12, md: 16, lg: 22, xl: 30, xxl: 40 },
+  radius: { card: 16, row: 16, button: 14, pill: 24 },
+  type: { body: 18, caption: 16, title: 30, heading: 22, display: 32 },
   minButtonHeight: 56,
-  maxContentWidth: 760,
+  maxContentWidth: 960,
 } as const;
