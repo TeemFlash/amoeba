@@ -4,11 +4,11 @@ import { MobiIllustration } from '../ui/MobiIllustration';
 import { t } from '../i18n';
 import { theme } from '../ui/theme';
 
-export function WelcomeScreen({ locale, onLocale, onStart, busy = false }: { locale: Locale; onLocale: (value: Locale) => void; onStart: () => void; busy?: boolean }) {
+export function WelcomeScreen({ locale, onLocale, onStart, busy = false, intro }: { locale: Locale; onLocale: (value: Locale) => void; onStart: () => void; busy?: boolean; intro?: string }) {
   return <Screen>
     <Card style={{ backgroundColor: theme.colors.softBlue, borderColor: theme.colors.softBlue }}>
       <Heading>{t(locale, 'welcomeTitle')}</Heading>
-      <Label>{t(locale, 'welcomeIntro')}</Label>
+      <Label>{intro ?? t(locale, 'welcomeIntro')}</Label>
       <MobiIllustration scene="armchair" height={190} style={{ maxWidth: 280, alignSelf: 'center' }} />
     </Card>
     <Card>

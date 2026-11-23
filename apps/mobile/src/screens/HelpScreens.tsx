@@ -180,7 +180,9 @@ export function HelpScreens({ locale, state, route, command, persistNote, naviga
             {row(t(locale, 'noteTitle'), draft.note || t(locale, 'noteOptional'), t(locale, 'editNote'), 'note')}
           </Card>
           <Card style={{ backgroundColor: theme.colors.cream, borderColor: theme.colors.cream }}>
-            <Label>{t(locale, cloudMode ? 'accountReviewHelpIntro' : 'reviewHelpIntro')}</Label><Label>{t(locale, 'costUnknown')}</Label><Label>{t(locale, 'noProvider')}</Label>
+            <Label>{t(locale, cloudMode ? 'accountReviewHelpIntro' : 'reviewHelpIntro')}</Label>
+            {cloudMode ? <Label>{t(locale, 'accountVolunteerPrivacy')}</Label> : null}
+            <Label>{t(locale, 'costUnknown')}</Label><Label>{t(locale, 'noProvider')}</Label>
           </Card>
           {error ? <ErrorNotice>{error}</ErrorNotice> : null}
           <Button label={t(locale, busy ? 'saving' : 'saveDemo')} onPress={() => submit?.()} disabled={locked} />

@@ -1,10 +1,10 @@
 # Mobi
 
-Реализован интерфейс из принятого дизайн-борда: RU/KZ, welcome и гостевой режим, четыре вкладки, отдельные шаги района/даты/времени/пожелания, редактируемая проверка выбора, сохранение и подтверждённая отмена, встречи со статусами, фильтры истории и настройка крупного текста. Шесть локальных иллюстраций находятся в `assets/illustrations`. Вход переносит гостевой выбор в аккаунт без автоматического сохранения заявки.
+При подключённом Firebase житель может подать заявку на бытовую помощь, согласовать встречу с назначенным волонтёром, проверить статус и отозвать заявку. Волонтёр видит открытые заявки, принимает их и отмечает выполнение. Гости видят опубликованные встречи, а жители могут занять место и отменить запись. Приложение поддерживает русский и казахский языки и крупный текст.
 
-Текущие результаты: [verification](../../docs/mvp/VERIFICATION.md), [independent Astra review](../../docs/mvp/ASTRA-REVIEW.md). Статический борд остаётся в [design/index.html](design/index.html); исполняемое приложение — `App.tsx` и `src/`.
+Порядок выдачи роли, публикации встреч и проверки рабочего режима описан в [руководстве оператора](../../docs/mvp/FIREBASE-OPERATIONS.md). Исполняемое приложение находится в `App.tsx` и `src/`.
 
-Демо построено на **TypeScript, React Native и Expo** с web preview через React Native Web. В локальном режиме `AsyncStorage` сохраняет черновик и историю на текущем устройстве или в браузере. По явному запросу пользователя добавлены Firebase Auth и Firestore для аккаунтов и сохранённых заявок. Live email/password регистрация, заявки, reload, cancel и изоляция пользователей проверены браузерным smoke; интерактивный Google OAuth и native device sign-in не проверены. Статус: [`FIREBASE-PROVISIONING`](../../docs/mvp/FIREBASE-PROVISIONING.md). Примеры услуг и встреч вымышлены.
+Приложение построено на **TypeScript, React Native и Expo**. Полностью пустая конфигурация Firebase включает прежнее учебное демо с локальным `AsyncStorage`. В подключённом приложении прежние записи жителей доступны через архив демо.
 
 ## Запуск
 
@@ -19,6 +19,12 @@ Expo Dev Tools предложит открыть Android, iOS или web. Для
 
 ```sh
 npm run web
+```
+
+Проверенный автономный Android APK находится в `android/app/build/outputs/apk/release/app-release.apk`. APK подписан локальным тестовым ключом и включает ARM64 и x86_64. На эмуляторе Pixel 10 он открыл действующее расписание Firebase и повторно запустился без Metro. Для повторной локальной сборки из сгенерированного каталога `android` на Windows:
+
+```powershell
+.\gradlew.bat :app:assembleRelease '-PreactNativeArchitectures=arm64-v8a,x86_64' '-Pandroid.enableMinifyInReleaseBuilds=false'
 ```
 
 ## Проверки
@@ -37,7 +43,7 @@ For this workspace root has already written the genuine web SDK configuration to
 
 To run against local emulators only, set `EXPO_PUBLIC_FIREBASE_PROJECT_ID=demo-mobi-rules` and `EXPO_PUBLIC_FIREBASE_EMULATOR_HOST=127.0.0.1` in `.env.local`, then start Auth and Firestore emulators from this directory with `npx firebase emulators:start --project demo-mobi-rules --only auth,firestore`. The browser preview uses `127.0.0.1`; Android emulator uses `10.0.2.2`. Emulator data is local and is not a live Firebase connection.
 
-Firestore is created in `asia-south1` and reviewed rules are deployed. Live Email/Password sign-in and saves were verified by browser QA. Google provider configuration is enabled and the button opens Google's sign-in page, but interactive Google login remains unverified. Native Google login requires a development build and registered platform IDs; device sign-in and native runtime have not been verified.
+Firestore is provisioned in `asia-south1`. For the current rules release and verification results, see [Firebase operations](../../docs/mvp/FIREBASE-OPERATIONS.md). The Google provider is enabled. Native Google login requires a development build and registered platform IDs. Interactive Google sign-in still needs testing on the intended devices.
 
 ## Структура
 
@@ -45,7 +51,7 @@ Firestore is created in `asia-south1` and reviewed rules are deployed. Live Emai
 - `src/domain/` — типы, фиксированные учебные каталоги, правила переходов и валидация.
 - `src/storage/` — сериализованный repository и адаптер AsyncStorage.
 - `src/screens/` — главная, помощь, встречи, история, аккаунт и экран инструкции/сброса.
-- `src/firebase/` — platform auth adapters, Firebase configuration, account repository, scoped intent storage and session guards.
+- `src/firebase/` — Firebase Auth, очереди и статусы рабочих заявок, закрытые сообщения участников, учёт мест на встречах и чтение архива.
 - `firestore.rules`, `rules-tests/` — Firestore access rules and emulator security tests.
 - `src/ui/` — типизированная навигация, крупные общие компоненты и голубые/лавандовые/кремовые токены.
 - `assets/illustrations/` — шесть декоративных сцен, подключаемых через `MobiIllustration` без сетевой зависимости.
@@ -53,7 +59,7 @@ Firestore is created in `asia-south1` and reviewed rules are deployed. Live Emai
 
 ## Граница демо
 
-Оба пути — помощь по дому и встречи — используют только вымышленные предложения, места и даты. Это не реальные услуги и не встречи. Без Firebase настройки данные остаются локально; в Firebase-режиме заявки сохраняются в аккаунт, но исполнитель/организатор не назначается. Локальный reset не удаляет облачные заявки.
+Учебный каталог, черновики и история локального режима хранятся отдельно от рабочих заявок. При подключённом Firebase расписание формируется из опубликованных оператором встреч. Принять заявку на помощь может только вошедший волонтёр с выданным доступом.
 
 Web preview и автоматические тесты не подтверждают работу физических сборок Android/iOS или системных дикторов VoiceOver/TalkBack. Web-проверка увеличенного текста не является нативным Dynamic Type тестом. Казахский текст требует редакторской проверки носителем языка; иконка Expo пока шаблонная.
 

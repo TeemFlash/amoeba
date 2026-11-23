@@ -7,6 +7,12 @@ export function createSessionGuard() {
       if (nextUid !== uid) { generation += 1; uid = nextUid; requestSequence += 1; }
       return generation;
     },
+    advance(candidateUid: string) {
+      if (uid !== candidateUid) return null;
+      generation += 1;
+      requestSequence += 1;
+      return generation;
+    },
     invalidate() { generation += 1; uid = null; requestSequence += 1; return generation; },
     isCurrent(candidateUid: string, candidateGeneration: number) { return uid === candidateUid && generation === candidateGeneration; },
     beginRequest(candidateUid: string, candidateGeneration: number) {

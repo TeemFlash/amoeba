@@ -1,6 +1,24 @@
 # Firebase accounts and saved applications — Astra
 
+**Current release, 2026-11-23.** The user selected resident and volunteer as the two mobile roles. The operator grants volunteer access and publishes confirmed meetings through Firebase. The working contract and field definitions are in [Firebase operations](FIREBASE-OPERATIONS.md). The in-app appointment manager described below is a future design.
+
 Date: 2026-11-10. Design author: Astra; implementation: Luna; independent acceptance: Astra. This is the concrete contract for the user's request to connect Firebase, add login/logout and save applications. The user clarified **email/password and Google sign-in**, using a **new Firebase project**. Technical choices below are Astra's implementation decisions, not preferences attributed to the user. Project provisioning remains pending authenticated access; this document does not claim a working connection.
+
+## Account privileges and appointment management
+
+Added 2026-11-23. These are requirements for a future release of the Firebase-backed demo. The working scope for appointments is the existing Meetings catalog, where people choose a published time and sign up.
+
+- **Ordinary users.** Guests and signed-in users open the usual Home and Meetings screens. Registration and sign-in have no role question. The main menu and profile show no role switch, administration link or editing controls to ordinary users. They can browse published meetings, then sign in to register or cancel their own registration.
+- **Admin access.** Every new or existing account has ordinary privileges by default. A trusted project operator grants or revokes admin access for a specific Firebase UID outside the mobile app. After the same sign-in, a verified admin sees a **Manage appointments** entry in Profile. Signing out or switching accounts closes management and clears its data before the next account appears.
+- **Scheduling and editing.** An admin can draft an appointment, set its date, time and place, edit its RU/KZ title and description, and publish it. Later edits stay private until published. The published version appears in the ordinary Meetings screen on refresh, without an app update. An admin can reschedule a published appointment, mark it full or cancel it. People who registered can see the updated time or cancellation in their appointment details, and their saved registration remains in their history.
+- **Access enforcement.** Keep the admin grant in a protected Firestore record keyed by UID. Only the trusted operator can change that record. Firestore rules must verify the grant for draft reads and every catalog write. Guests and ordinary users may read only the published catalog. Saving a new registration must check that the appointment is still published and open, including when someone opened the screen before it was cancelled. Existing owner-only rules continue to govern personal applications.
+
+**Acceptance checks for implementation**
+
+1. Register an ordinary account and open an existing ordinary account. Both reach the product without a role prompt. Neither can open management, read a draft, change the catalog or grant itself admin access through a direct database request.
+2. With an admin account, draft an appointment and publish it. In a separate ordinary session, refresh Meetings and check both RU and KZ. The draft is invisible before publication. A subsequent unpublished edit leaves the last published version visible.
+3. Register for a published appointment, then reschedule and cancel it as the admin. After refresh, the attendee sees the changed time and then the cancellation. Their registration history is preserved. A new registration from a stale screen is refused.
+4. Switch from the admin to an ordinary account on the same device. The management screen and its drafts disappear. Revoke the admin grant on a signed-in admin account and verify that its next attempted edit is denied.
 
 ## Scope and current behavior
 

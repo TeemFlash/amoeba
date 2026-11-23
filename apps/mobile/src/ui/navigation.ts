@@ -4,6 +4,7 @@ import type { TranslationKey } from '../i18n';
 export type Route =
   | { name: 'welcome' }
   | { name: 'home' }
+  | { name: 'calls' }
   | { name: 'help-catalog'; returnToReview?: boolean }
   | { name: 'help-terms'; serviceId: ServiceId }
   | { name: 'help-form' }
@@ -29,6 +30,7 @@ export const routeTitle = (route: Route): TranslationKey => {
   switch (route.name) {
     case 'welcome': return 'welcomeTitle';
     case 'home': return 'homeTitle';
+    case 'calls': return 'volunteerCallsTitle';
     case 'help-catalog': return 'helpCatalogTitle';
     case 'help-terms': return 'termsTitle';
     case 'help-form': return 'formTitle';

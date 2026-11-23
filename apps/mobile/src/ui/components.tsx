@@ -1,5 +1,5 @@
 import type { PropsWithChildren, ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import type { Locale } from '../domain/types';
 import { t, type TranslationKey } from '../i18n';
 import { theme } from './theme';
@@ -82,7 +82,7 @@ export function StatusTag({ label, cancelled = false, variant }: { label: string
   const visual = resolved === 'available' ? styles.statusAvailable : resolved === 'full' ? styles.statusFull : resolved === 'cancelled' ? styles.statusCancelled : undefined;
   const visualText = resolved === 'available' ? styles.statusAvailableText : resolved === 'full' ? styles.statusFullText : resolved === 'cancelled' ? styles.statusCancelledText : undefined;
   const prefix = resolved === 'available' ? '✓ ' : resolved === 'full' ? '! ' : resolved === 'cancelled' ? '× ' : '';
-  return <View accessibilityRole="status" accessibilityLiveRegion="polite" style={[styles.statusTag, visual]}><Text style={[styles.statusText, { fontSize: theme.type.caption * scale, lineHeight: theme.lineHeight.caption * scale }, visualText]}>{prefix}{label}</Text></View>;
+  return <View accessibilityRole={Platform.OS === 'web' ? 'status' : undefined} accessibilityLiveRegion="polite" style={[styles.statusTag, visual]}><Text style={[styles.statusText, { fontSize: theme.type.caption * scale, lineHeight: theme.lineHeight.caption * scale }, visualText]}>{prefix}{label}</Text></View>;
 }
 export function KeyValue({ label, value }: { label: TranslationKey | string; value: string }) {
   const scale = useTextScale();

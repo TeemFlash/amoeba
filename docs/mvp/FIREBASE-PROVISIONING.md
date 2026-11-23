@@ -1,5 +1,7 @@
 # Firebase project provisioning — 2026-11-10
 
+**Operational release, 2026-11-23.** The live default Firestore database in `mobi-senior-20261110` now uses the resident and volunteer rules. Release `e3f9db06-edea-4771-b3e5-11db4ca558e2` became active at 07:00:35 UTC. Its source was fetched after deployment and its SHA-256 matched the rules approved by Astra 6.2 xhigh, `f3bf6e0caa6c81265fa8b435b2da2c96d5bf5b775745fdd550112c70e883d84e`. The previous release was `8d5637af-1a04-43b5-a7d5-3978a2f63dfa`. See the [operations guide](FIREBASE-OPERATIONS.md) for account grants, meeting publication and current checks. The sections below record the earlier demo deployment.
+
 ## Project and apps
 
 Root created Firebase project **Mobi**, project ID `mobi-senior-20261110`, project number `550019867322`. The unrelated Spark project was left untouched. Registered applications use package/bundle ID `dev.enactus.seniorhelp.demo`:

@@ -39,6 +39,20 @@ function entryTitle(entry: Entry, locale: Locale) {
     ? services.find((item) => item.id === entry.serviceId)?.title[locale] ?? ''
     : events.find((item) => item.id === entry.eventId)?.title[locale] ?? '';
 }
+
+export function ArchivedEntry({ entry, locale }: { entry: Entry; locale: Locale }) {
+  return <Card>
+    <Heading level="section">{entryTitle(entry, locale)}</Heading>
+    <Label>{t(locale, entry.status === 'saved-demo' ? 'entryStatusSaved' : 'entryStatusCancelled')}</Label>
+    {entry.kind === 'help' ? <>
+      <KeyValue label={t(locale, 'selectDistrict')} value={districts.find((item) => item.id === entry.districtId)?.title[locale] ?? ''} />
+      <KeyValue label={t(locale, 'dateLabel')} value={dates.find((item) => item.id === entry.dateId)?.title[locale] ?? t(locale, 'entryDateUnspecified')} />
+      <KeyValue label={t(locale, 'selectTime')} value={slots.find((item) => item.id === entry.slotId)?.title[locale] ?? ''} />
+      {entry.note ? <KeyValue label={t(locale, 'noteTitle')} value={entry.note} /> : null}
+    </> : <KeyValue label={t(locale, 'eventDateLabel')} value={events.find((item) => item.id === entry.eventId)?.dateLabel[locale] ?? ''} />}
+    <Label muted>{formatDate(entry.createdAt, locale)}</Label>
+  </Card>;
+}
 function entryScene(entry: Entry): IllustrationScene {
   if (entry.kind === 'event') return eventScene(entry.eventId);
   return serviceScene(entry.serviceId);
@@ -166,6 +180,7 @@ export function EntriesScreen({ locale, route, state, navigate, dismiss, cancel,
         <Label>{entry.kind === 'help'
           ? t(locale, cloudMode ? 'helpSavedAccount' : 'helpSavedLocal')
           : t(locale, cloudMode ? 'eventSavedAccount' : 'eventSavedLocal')}</Label>
+        {entry.kind === 'help' && cloudMode ? <Label>{t(locale, 'accountVolunteerPrivacy')}</Label> : null}
         <KeyValue label={t(locale, 'entryIdLabel')} value={entry.id} />
         {entry.kind === 'event'
           ? <KeyValue label={t(locale, 'eventDateLabel')} value={events.find((item) => item.id === entry.eventId)?.dateLabel[locale] ?? ''} />

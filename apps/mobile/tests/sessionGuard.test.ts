@@ -23,3 +23,15 @@ test('a late same-account refresh cannot overwrite the result of a newer refresh
   assert.equal(guard.isCurrentRequest('user-a', generation, newer), true);
   assert.equal(guard.beginRequest('user-b', generation), null);
 });
+
+test('a same-UID role transition advances the session and rejects resident results', () => {
+  const guard = createSessionGuard();
+  const residentGeneration = guard.begin('user-a');
+  const delayedResidentRead = guard.beginRequest('user-a', residentGeneration)!;
+  const volunteerGeneration = guard.advance('user-a')!;
+  assert.notEqual(volunteerGeneration, residentGeneration);
+  assert.equal(guard.isCurrent('user-a', residentGeneration), false);
+  assert.equal(guard.isCurrentRequest('user-a', residentGeneration, delayedResidentRead), false);
+  assert.equal(guard.isCurrent('user-a', volunteerGeneration), true);
+  assert.equal(guard.advance('other-user'), null);
+});

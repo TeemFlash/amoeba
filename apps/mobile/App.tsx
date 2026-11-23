@@ -29,6 +29,10 @@ import { TextSizeProvider } from './src/ui/Typography';
 import { TabIcon, type TabIconName } from './src/ui/TabIcon';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
+import { VolunteerCallsScreen } from './src/screens/VolunteerCallsScreen';
+import type { HelpCall, VolunteerStats } from './src/firebase/volunteers';
+import { VolunteerError } from './src/firebase/volunteers';
+import { OperationalApp } from './src/screens/OperationalApp';
 
 function localHelpDraft(draft: AccountDraft | null): AppState['draft'] {
   if (!draft || draft.kind !== 'help') return null;
@@ -73,7 +77,20 @@ function errorText(locale: Locale, code: ErrorCode): string {
 }
 
 export default function App() {
-  return <SafeAreaProvider><AppContent /></SafeAreaProvider>;
+  const operational = firebaseConfig.mode === 'cloud' || firebaseConfig.mode === 'emulator';
+  return <SafeAreaProvider>{operational ? <OperationalApp authErrorText={authErrorText} renderChrome={({ locale, onLocale, back, tab, selectTab, volunteer, children }) => (
+    <SafeAreaView style={styles.root}>
+      <StatusBar barStyle="dark-content" />
+      <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.waveDecor}><View style={styles.waveA} /><View style={styles.waveB} /></View>
+      <ScrollView style={styles.pageScroll} contentContainerStyle={styles.pageContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.pageMeasure}>
+          <Header locale={locale} onLocale={onLocale} canBack={Boolean(back)} goBack={back ?? (() => {})} />
+          {children}
+        </View>
+      </ScrollView>
+      {tab ? <TabBar locale={locale} active={tab} navigate={selectTab} volunteer={volunteer} /> : null}
+    </SafeAreaView>
+  )} /> : <AppContent />}</SafeAreaProvider>;
 }
 
 function AppContent() {
@@ -108,13 +125,23 @@ function AppContent() {
   const [accountBusy, setAccountBusy] = useState(false);
   const [accountFeedback, setAccountFeedback] = useState<string | null>(null);
   const [accountNotice, setAccountNotice] = useState<string | null>(null);
+  const [volunteerCalls, setVolunteerCalls] = useState<HelpCall[]>([]);
+  const [volunteerCallsLoading, setVolunteerCallsLoading] = useState(false);
+  const [volunteerCallsError, setVolunteerCallsError] = useState(false);
+  const [volunteerBusyId, setVolunteerBusyId] = useState<string | null>(null);
+  const [volunteerStats, setVolunteerStats] = useState<VolunteerStats | null>(null);
+  const [volunteerStatsLoading, setVolunteerStatsLoading] = useState(false);
+  const [volunteerStatsError, setVolunteerStatsError] = useState(false);
+  const [volunteerPickupNotice, setVolunteerPickupNotice] = useState<TranslationKey | null>(null);
+  const [volunteerPickupError, setVolunteerPickupError] = useState<TranslationKey | null>(null);
   const [guestConflict, setGuestConflict] = useState(false);
   const [handoffRetry, setHandoffRetry] = useState(0);
   const authReturnRoute = useRef<Route | null>(null);
   const guestReturnRoute = useRef<Route | null>(null);
   const guestTransfer = useRef<GuestDraft | null>(null);
   const guestTransferRunning = useRef(false);
-  const route = routeStack[routeStack.length - 1] ?? initialRoute;
+  const storedRoute = routeStack[routeStack.length - 1] ?? initialRoute;
+  const route = account.role === 'volunteer' && storedRoute.name !== 'calls' && storedRoute.name !== 'profile' ? { name: 'calls' as const } : storedRoute;
   const focusedFlowNeedsBack = ['account', 'help-terms', 'help-form', 'help-step', 'help-review', 'event-terms', 'event-confirm', 'event-review', 'entry', 'entry-success', 'cancel-confirm', 'discard-confirm', 'replace-confirm', 'reset-confirm', 'about'].includes(route.name);
   const locale = appState?.locale ?? 'ru';
   const appRef = repository;
@@ -186,16 +213,19 @@ function AppContent() {
     return () => { active = false; if (!completed) initialLoadStarted.current = false; };
   }, [appRef, commit, guestDraftStore, preferencesStore, preferencesReady, loadRetry, account.authLoading, account.mode, account.user, updateGuestDraft]);
 
+  const volunteerOnly = account.role === 'volunteer';
   const navigate = useCallback((next: Route) => {
+    if (account.role === 'volunteer' && next.name !== 'calls' && next.name !== 'profile') return;
     setActionError(null);
     setCloudActionError(null);
     setRouteStack((stack) => [...stack, next]);
-  }, []);
+  }, [account.role]);
   const goToRoot = useCallback((next: Route) => {
+    if (account.role === 'volunteer' && next.name !== 'calls' && next.name !== 'profile') return;
     setActionError(null);
     setCloudActionError(null);
     setRouteStack([next]);
-  }, []);
+  }, [account.role]);
   const requireAccount = useCallback((returnRoute: Route) => {
     if (account.user) return true;
     authReturnRoute.current = returnRoute;
@@ -245,6 +275,80 @@ function AppContent() {
     const generation = account.generationFor(account.user.uid);
     if (generation !== null) void account.refresh(account.user.uid, generation);
   }, [route.name, account.user?.uid, account.generationFor, account.refresh]);
+
+  useEffect(() => {
+    setVolunteerCalls([]); setVolunteerStats(null); setVolunteerCallsError(false); setVolunteerStatsError(false); setVolunteerCallsLoading(false); setVolunteerStatsLoading(false); setVolunteerBusyId(null); setVolunteerPickupNotice(null); setVolunteerPickupError(null);
+    if (account.role === 'volunteer') { guestTransfer.current = null; guestReturnRoute.current = null; authReturnRoute.current = null; setGuestConflict(false); }
+    setRouteStack((stack) => account.role === 'volunteer'
+      ? [{ name: 'calls' }]
+      : stack.some((item) => item.name === 'calls') ? [{ name: 'home' }] : stack);
+  }, [account.role, account.user?.uid]);
+
+  const loadVolunteerCalls = useCallback(async () => {
+    const user = account.user;
+    const repository = account.volunteers;
+    if (!user || account.role !== 'volunteer' || !repository) return;
+    const generation = account.generationFor(user.uid);
+    if (generation === null) return;
+    setVolunteerCallsLoading(true); setVolunteerCallsError(false);
+    try {
+      const calls = await repository.listOpenHelpCalls(user.uid);
+      if (account.isCurrent(user.uid, generation) && account.user?.uid === user.uid && account.role === 'volunteer') setVolunteerCalls(calls);
+    } catch {
+      if (account.isCurrent(user.uid, generation) && account.user?.uid === user.uid) { setVolunteerCalls([]); setVolunteerCallsError(true); }
+    } finally {
+      if (account.isCurrent(user.uid, generation) && account.user?.uid === user.uid) setVolunteerCallsLoading(false);
+    }
+  }, [account.user?.uid, account.role, account.volunteers, account.generationFor, account.isCurrent]);
+  useEffect(() => {
+    if (route.name === 'calls' && account.role === 'volunteer') void loadVolunteerCalls();
+  }, [route.name, account.role, account.user?.uid, loadVolunteerCalls]);
+  const loadVolunteerStats = useCallback(async () => {
+    const user = account.user;
+    const repository = account.volunteers;
+    if (!user || account.role !== 'volunteer' || !repository) return;
+    const generation = account.generationFor(user.uid);
+    if (generation === null) return;
+    setVolunteerStatsLoading(true); setVolunteerStatsError(false);
+    try {
+      const stats = await repository.getVolunteerStats(user.uid);
+      if (account.isCurrent(user.uid, generation) && account.user?.uid === user.uid && account.role === 'volunteer') setVolunteerStats(stats);
+    } catch {
+      if (account.isCurrent(user.uid, generation) && account.user?.uid === user.uid) { setVolunteerStats(null); setVolunteerStatsError(true); }
+    } finally {
+      if (account.isCurrent(user.uid, generation) && account.user?.uid === user.uid) setVolunteerStatsLoading(false);
+    }
+  }, [account.user?.uid, account.role, account.volunteers, account.generationFor, account.isCurrent]);
+  useEffect(() => {
+    if (route.name === 'profile' && account.role === 'volunteer') void loadVolunteerStats();
+  }, [route.name, account.role, account.user?.uid, loadVolunteerStats]);
+  const pickUpHelpCall = useCallback(async (operationId: string) => {
+    const user = account.user;
+    const repository = account.volunteers;
+    if (!user || account.role !== 'volunteer' || !repository || volunteerBusyId) return false;
+    const generation = account.generationFor(user.uid);
+    if (generation === null) return false;
+    setVolunteerBusyId(operationId);
+    setVolunteerPickupNotice(null); setVolunteerPickupError(null);
+    try {
+      await repository.pickUpHelpCall(user.uid, operationId);
+      if (!account.isCurrent(user.uid, generation) || account.user?.uid !== user.uid || account.role !== 'volunteer') return false;
+      setCloudActionError(null);
+      setVolunteerPickupNotice('volunteerPickedUp');
+      setVolunteerCalls((calls) => calls.filter((call) => call.operationId !== operationId));
+      void loadVolunteerCalls();
+      return true;
+    } catch (error) {
+      if (account.isCurrent(user.uid, generation) && account.user?.uid === user.uid) {
+        setVolunteerPickupError(error instanceof VolunteerError && (error.code === 'CALL_TAKEN' || error.code === 'CALL_NOT_FOUND')
+          ? 'volunteerCallUnavailable' : 'volunteerPickupError');
+        await loadVolunteerCalls();
+      }
+      return false;
+    } finally {
+      if (account.isCurrent(user.uid, generation) && account.user?.uid === user.uid) setVolunteerBusyId(null);
+    }
+  }, [account.user?.uid, account.role, account.volunteers, account.generationFor, account.isCurrent, volunteerBusyId, loadVolunteerCalls, locale]);
 
   useEffect(() => {
     const captured = guestTransfer.current;
@@ -445,6 +549,7 @@ function AppContent() {
   const runCommand = useCallback(async (command: Command): Promise<Result<Transition>> => {
     const current = stateRef.current;
     if (!current) return { ok: false, error: { code: 'STORAGE_READ_FAILED' } };
+    if (account.role === 'volunteer' && command.type !== 'setLocale') return { ok: false, error: { code: 'INVALID_SELECTION' } };
     if (cloudMode && !account.user && command.type !== 'setLocale') {
       if (command.type === 'submitHelp' || command.type === 'enrollEvent' || command.type === 'cancelEntry') {
         setCloudActionError(t(locale, 'guestSaveGate'));
@@ -754,6 +859,7 @@ function AppContent() {
     });
     return () => listener.remove();
   }, [focusedFlowNeedsBack, goBack, routeStack.length]);
+  const onLocale = (nextLocale: Locale) => { void runCommand({ type: 'setLocale', locale: nextLocale }); };
 
   if (!appState || !preferencesReady) {
     const loadingLocale = bootLocale;
@@ -783,6 +889,16 @@ function AppContent() {
     </SafeAreaView></TextSizeProvider>;
   }
 
+  if (account.mode === 'configured' && account.user && (account.roleLoading || account.roleError || account.role === null)) {
+    return <TextSizeProvider value={textSize}><SafeAreaView style={styles.root}>
+      <StatusBar barStyle="dark-content" />
+      <ScrollView style={styles.pageScroll} contentContainerStyle={styles.pageContent}><View style={styles.pageMeasure}>
+        <Header locale={locale} onLocale={onLocale} canBack={false} goBack={() => {}} disabled={busy} /><Notice locale={locale} />
+        <Screen>{account.roleError ? <><ErrorNotice>{t(locale, 'volunteerRoleError')}</ErrorNotice><Button label={t(locale, 'retry')} onPress={() => void account.refreshRole(account.user!.uid)} disabled={account.roleLoading} /></> : <Heading>{t(locale, 'authLoading')}</Heading>}<Button label={t(locale, 'logout')} kind="secondary" onPress={logoutAccount} disabled={busy || account.authLoading} /></Screen>
+      </View></ScrollView>
+    </SafeAreaView></TextSizeProvider>;
+  }
+
   const visibleState: AppState = {
     ...appState,
     draft: localMode ? appState.draft : cloudMode && account.user ? localHelpDraft(account.draft) : cloudMode && guestDraft?.kind === 'help' ? guestDraft : null,
@@ -792,7 +908,6 @@ function AppContent() {
   const accountError = account.authError ? authErrorText(locale, account.authError)
     : account.historyError || account.storageError ? t(locale, 'accountReadError')
       : cloudActionError ?? accountFeedback;
-  const onLocale = (nextLocale: Locale) => { void runCommand({ type: 'setLocale', locale: nextLocale }); };
   const onNavigate = (next: Route) => navigate(next);
   const currentTitle = t(locale, routeTitle(route));
   const isTop = routeStack.length > 1;
@@ -800,8 +915,9 @@ function AppContent() {
   let content: React.ReactNode = null;
   const interactionLocked = busy || pendingCommands.length > 0 || cloudMode && (account.loadingHistory || account.historyError || account.storageError || Boolean(account.pendingIntent));
   if (route.name === 'welcome') content = <WelcomeScreen locale={locale} onLocale={onLocale} onStart={() => void finishWelcome()} busy={busy} />;
-  else if (route.name === 'home') content = <HomeScreen locale={locale} state={visibleState} navigate={onNavigate} draftPending={!cloudMode && pendingCommands.some((command) => command.type === 'startHelp' || command.type === 'editHelp' || command.type === 'setDraftStep')} draftSavedInAccount={cloudMode && Boolean(account.draft)} eventDraft={cloudMode ? account.user ? account.draft?.kind === 'event' ? { eventId: account.draft.eventId, operationId: account.draft.operationId } : null : guestDraft?.kind === 'event' ? { eventId: guestDraft.eventId, operationId: guestDraft.operationId } : null : null} />;
-  else if (route.name === 'profile') content = <ProfileScreen locale={locale} textSize={textSize} onTextSize={(size) => void updateTextSize(size)} onLocale={onLocale} mode={accountMode} email={account.user?.email ?? null} authLoading={account.authLoading} busy={busy} navigate={onNavigate} onLogout={logoutAccount} />;
+  else if (route.name === 'calls' && volunteerOnly) content = <VolunteerCallsScreen locale={locale} calls={volunteerCalls} loading={volunteerCallsLoading} error={volunteerCallsError} busyId={volunteerBusyId} pickupNotice={volunteerPickupNotice} pickupError={volunteerPickupError} onPickUp={pickUpHelpCall} onRefresh={() => void loadVolunteerCalls()} />;
+  else if (route.name === 'home' && !volunteerOnly) content = <HomeScreen locale={locale} state={visibleState} navigate={onNavigate} draftPending={!cloudMode && pendingCommands.some((command) => command.type === 'startHelp' || command.type === 'editHelp' || command.type === 'setDraftStep')} draftSavedInAccount={cloudMode && Boolean(account.draft)} eventDraft={cloudMode ? account.user ? account.draft?.kind === 'event' ? { eventId: account.draft.eventId, operationId: account.draft.operationId } : null : guestDraft?.kind === 'event' ? { eventId: guestDraft.eventId, operationId: guestDraft.operationId } : null : null} />;
+  else if (route.name === 'profile') content = <ProfileScreen locale={locale} textSize={textSize} onTextSize={(size) => void updateTextSize(size)} onLocale={onLocale} mode={accountMode} email={account.user?.email ?? null} authLoading={account.authLoading} busy={busy} navigate={onNavigate} onLogout={logoutAccount} volunteer={volunteerOnly} volunteerStats={volunteerStats} volunteerStatsLoading={volunteerStatsLoading} volunteerStatsError={volunteerStatsError} onRetryVolunteerStats={() => void loadVolunteerStats()} />;
   else if (route.name === 'account') content = <AccountScreen
     locale={locale} mode={accountMode} userEmail={account.user?.email ?? null} loading={account.authLoading || account.loadingHistory} busy={accountBusy || busy}
     error={accountError} notice={accountNotice} historyError={account.historyError || account.storageError}
@@ -842,7 +958,7 @@ function AppContent() {
         {content}
       </View>
     </ScrollView>
-    {!['welcome', 'account', 'help-terms', 'help-form', 'help-step', 'help-review', 'event-terms', 'event-confirm', 'event-review', 'entry-success', 'entry', 'cancel-confirm', 'about', 'discard-confirm', 'replace-confirm', 'reset-confirm'].includes(route.name) ? <TabBar locale={locale} active={route.name} navigate={goToRoot} /> : null}
+    {!['welcome', 'account', 'help-terms', 'help-form', 'help-step', 'help-review', 'event-terms', 'event-confirm', 'event-review', 'entry-success', 'entry', 'cancel-confirm', 'about', 'discard-confirm', 'replace-confirm', 'reset-confirm'].includes(route.name) ? <TabBar locale={locale} active={route.name} navigate={goToRoot} volunteer={volunteerOnly} /> : null}
   </SafeAreaView></TextSizeProvider>;
 }
 
@@ -864,8 +980,8 @@ function Header({ locale, onLocale, canBack, goBack, disabled = false }: { local
   </View>;
 }
 
-function TabBar({ locale, active, navigate }: { locale: Locale; active: Route['name']; navigate: (route: Route) => void }) {
-  const selected = active === 'events' || active === 'event-terms' || active === 'event-confirm' || active === 'event-review' ? 'events'
+function TabBar({ locale, active, navigate, volunteer = false }: { locale: Locale; active: Route['name']; navigate: (route: Route) => void; volunteer?: boolean }) {
+  const selected = active === 'calls' ? 'calls' : active === 'events' || active === 'event-terms' || active === 'event-confirm' || active === 'event-review' ? 'events'
     : active === 'entries' || active === 'entry' || active === 'entry-success' || active === 'cancel-confirm' ? 'entries'
       : active === 'profile' || active === 'account' || active === 'about' || active === 'reset-confirm' ? 'profile' : 'home';
   const scale = useTextScale();
@@ -873,12 +989,15 @@ function TabBar({ locale, active, navigate }: { locale: Locale; active: Route['n
   const requiredCellWidth = 88 * scale * fontScale;
   const cellWidth = (count: number) => (width - 4 - 2 * (count - 1)) / count - 2;
   const columnCount = cellWidth(4) >= requiredCellWidth ? 4 : cellWidth(2) >= requiredCellWidth ? 2 : 1;
-  const tabs: { name: 'home' | 'events' | 'entries' | 'profile'; label: TranslationKey; visual: TranslationKey; icon: TabIconName }[] = [
+  const residentTabs: { name: 'home' | 'events' | 'entries' | 'profile'; label: TranslationKey; visual: TranslationKey; icon: TabIconName }[] = [
     { name: 'home', label: 'tabHome', visual: 'tabHomeVisual', icon: 'home' },
     { name: 'events', label: 'tabActivities', visual: 'tabActivitiesVisual', icon: 'activities' },
     { name: 'entries', label: 'tabEntries', visual: 'tabEntriesVisual', icon: 'requests' },
     { name: 'profile', label: 'tabProfile', visual: 'tabProfileVisual', icon: 'profile' },
   ];
+  const tabs: { name: 'home' | 'events' | 'entries' | 'profile' | 'calls'; label: TranslationKey; visual: TranslationKey; icon: TabIconName }[] = volunteer
+    ? [{ name: 'calls', label: 'volunteerCallsTitle', visual: 'volunteerCallsTab', icon: 'activities' }, residentTabs[3]!]
+    : residentTabs;
   return <View accessibilityRole="tablist" style={styles.tabs}>
     {tabs.map((tab) => <Pressable key={tab.name} accessibilityRole="tab" accessibilityLabel={t(locale, tab.label)} accessibilityState={{ selected: selected === tab.name }} aria-selected={selected === tab.name} onPress={() => navigate({ name: tab.name })} style={[styles.tab, columnCount === 2 && styles.tabTwoColumns, columnCount === 1 && styles.tabOneColumn, selected === tab.name && styles.tabSelected]}>
       <TabIcon name={tab.icon} color={selected === tab.name ? theme.colors.primary : theme.colors.secondary} size={26 * scale} />

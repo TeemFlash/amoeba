@@ -2,6 +2,20 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedInAs(uid) { return request.auth != null && request.auth.uid == uid; }
+    function hasVolunteerGrant() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/volunteerRoles/$(request.auth.uid));
+    }
+    function resident(uid) { return signedInAs(uid) && !hasVolunteerGrant(); }
+    function linkPath(operationId) {
+      return /databases/$(database)/documents/users/$(request.auth.uid)/helpCallLinks/$(operationId);
+    }
+    function callPath(operationId) {
+      return /databases/$(database)/documents/helpCalls/$(operationId);
+    }
+    function appPath(operationId) {
+      return /databases/$(database)/documents/users/$(request.auth.uid)/applications/$(operationId);
+    }
     function helpDateNotePair(data) {
       return data.keys().hasAll(['dateId', 'note']) && data.dateId in ['demo-nov12', 'demo-nov14', 'demo-nov17', 'demo-nov19']
         && data.note is string && data.note.size() <= 280
@@ -36,20 +50,62 @@ service cloud.firestore {
       return resource.data.status == 'saved-demo' && request.resource.data.status == 'cancelled-demo'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
         && request.resource.data.cancelledAt == request.time
+        && (resource.data.kind != 'help' || !exists(linkPath(operationId))
+          || getAfter(callPath(operationId)).data.status == 'cancelled')
         && (resource.data.kind != 'event'
           || !existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)/activeEvents/$(resource.data.eventId))
           || getAfter(/databases/$(database)/documents/users/$(request.auth.uid)/activeEvents/$(resource.data.eventId)).data.operationId != operationId);
     }
 
+    match /volunteerRoles/{uid} {
+      allow get: if signedInAs(uid);
+    }
+    match /users/{uid}/helpCallLinks/{operationId} {
+      allow get: if resident(uid);
+      allow create: if resident(uid)
+        && request.resource.data.keys().hasOnly(['operationId'])
+        && request.resource.data.operationId == operationId
+        && !exists(callPath(operationId)) && existsAfter(callPath(operationId))
+        && !exists(appPath(operationId)) && getAfter(appPath(operationId)).data.kind == 'help';
+    }
+    function publishedCall(data, operationId) {
+      let app = getAfter(appPath(operationId)).data;
+      return !exists(appPath(operationId)) && existsAfter(linkPath(operationId))
+        && data.keys().hasOnly(['serviceId', 'districtId', 'slotId', 'dateId', 'status', 'claimedBy', 'createdAt', 'claimedAt'])
+        && app.kind == 'help' && app.status == 'saved-demo'
+        && data.serviceId == app.serviceId && data.districtId == app.districtId
+        && data.slotId == app.slotId && data.dateId == app.get('dateId', null)
+        && data.status == 'open' && data.claimedBy == null
+        && data.createdAt == request.time && data.claimedAt == null;
+    }
+    function validPickup() {
+      return resource.data.status == 'open' && request.resource.data.status == 'claimed'
+        && request.resource.data.claimedBy == request.auth.uid
+        && request.resource.data.claimedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'claimedBy', 'claimedAt']);
+    }
+    function ownerCancelsCall(operationId) {
+      return exists(linkPath(operationId))
+        && getAfter(appPath(operationId)).data.status == 'cancelled-demo'
+        && resource.data.status in ['open', 'claimed'] && request.resource.data.status == 'cancelled'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+    }
+    match /helpCalls/{operationId} {
+      allow get, list: if hasVolunteerGrant()
+        && (resource.data.status == 'open' || resource.data.claimedBy == request.auth.uid);
+      allow create: if request.auth != null && !hasVolunteerGrant() && publishedCall(request.resource.data, operationId);
+      allow update: if request.auth != null
+        && (hasVolunteerGrant() ? validPickup() : ownerCancelsCall(operationId));
+    }
     match /users/{uid}/applications/{operationId} {
-      allow get, list: if signedInAs(uid);
-      allow create: if signedInAs(uid) && validCreate(request.resource.data, operationId);
-      allow update: if signedInAs(uid) && validCancel(operationId);
+      allow get, list: if resident(uid);
+      allow create: if resident(uid) && validCreate(request.resource.data, operationId);
+      allow update: if resident(uid) && validCancel(operationId);
       allow delete: if false;
     }
     match /users/{uid}/activeEvents/{eventId} {
-      allow get, list: if signedInAs(uid);
-      allow create: if signedInAs(uid)
+      allow get, list: if resident(uid);
+      allow create: if resident(uid)
         && request.resource.data.keys().hasAll(['operationId', 'applicationId'])
         && request.resource.data.keys().hasOnly(['operationId', 'applicationId'])
         && request.resource.data.operationId is string
@@ -58,8 +114,197 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/users/$(uid)/applications/$(request.resource.data.operationId)).data.eventId == eventId
         && getAfter(/databases/$(database)/documents/users/$(uid)/applications/$(request.resource.data.operationId)).data.status == 'saved-demo';
       allow update: if false;
-      allow delete: if signedInAs(uid)
+      allow delete: if resident(uid)
         && getAfter(/databases/$(database)/documents/users/$(uid)/applications/$(resource.data.operationId)).data.status == 'cancelled-demo';
+    }
+    function operationalId(id) {
+      return id is string && id.matches('^[A-Za-z0-9_-]{1,128}$') && !id.matches('^__.*__$');
+    }
+    function residentAccount() { return request.auth != null && !hasVolunteerGrant(); }
+    function operationalHelpPath(id) {
+      return /databases/$(database)/documents/operationalHelp/$(id);
+    }
+    function operationalPrivatePath(id) {
+      return /databases/$(database)/documents/operationalHelpPrivate/$(id);
+    }
+    function operationalLinkPath(id) {
+      return /databases/$(database)/documents/users/$(request.auth.uid)/operationalHelpLinks/$(id);
+    }
+    function ownsOperationalHelp(id) { return residentAccount() && exists(operationalLinkPath(id)); }
+    function availableOperationalSlot(data) {
+      // Both Astana slot starts at UTC+05 fall on the same UTC calendar date.
+      return data.startsAt is timestamp && data.startsAt > request.time
+        && data.startsAt.date() <= (request.time + duration.value(5, 'h')).date() + duration.value(30, 'd')
+        && (data.slotId == '10-12' && data.startsAt == data.startsAt.date() + duration.value(5, 'h')
+          || data.slotId == '14-16' && data.startsAt == data.startsAt.date() + duration.value(9, 'h'));
+    }
+    function operationalHelpCreate(data, id) {
+      return residentAccount() && operationalId(id)
+        && data.keys().hasOnly(['serviceId', 'districtId', 'slotId', 'startsAt', 'status', 'createdAt', 'claimedBy', 'claimedAt', 'endedAt'])
+        && data.serviceId in ['groceries', 'home-help', 'digital-help']
+        && data.districtId in ['astana-esil', 'astana-almaty', 'astana-saryarka', 'astana-baikonur', 'astana-nura', 'astana-saraiyshyk']
+        && availableOperationalSlot(data)
+        && data.status == 'open' && data.createdAt == request.time
+        && data.claimedBy == null && data.claimedAt == null && data.endedAt == null
+        && !exists(operationalLinkPath(id)) && existsAfter(operationalLinkPath(id))
+        && !exists(operationalPrivatePath(id)) && existsAfter(operationalPrivatePath(id));
+    }
+    function assignOperationalHelp(id) {
+      return hasVolunteerGrant() && !exists(operationalLinkPath(id))
+        && resource.data.status == 'open' && resource.data.startsAt > request.time
+        && request.resource.data.status == 'claimed' && request.resource.data.claimedBy == request.auth.uid
+        && request.resource.data.claimedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'claimedBy', 'claimedAt']);
+    }
+    function endOperationalHelp(id) {
+      return request.resource.data.endedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'endedAt'])
+        && (request.resource.data.status == 'completed' && resource.data.status == 'claimed'
+              && hasVolunteerGrant() && resource.data.claimedBy == request.auth.uid
+          || request.resource.data.status == 'cancelled' && resource.data.status in ['open', 'claimed']
+              && ownsOperationalHelp(id));
+    }
+    function canSeeVolunteerHelp() {
+      return hasVolunteerGrant() && (resource.data.status == 'open' || resource.data.claimedBy == request.auth.uid);
+    }
+    match /operationalHelp/{id} {
+      allow list: if canSeeVolunteerHelp();
+      allow get: if ownsOperationalHelp(id) || canSeeVolunteerHelp();
+      allow create: if operationalHelpCreate(request.resource.data, id);
+      allow update: if assignOperationalHelp(id) || endOperationalHelp(id);
+    }
+    match /users/{uid}/operationalHelpLinks/{id} {
+      allow get, list: if resident(uid);
+      allow create: if resident(uid) && operationalId(id)
+        && request.resource.data.keys().hasOnly(['createdAt']) && request.resource.data.createdAt == request.time
+        && !exists(operationalHelpPath(id)) && existsAfter(operationalHelpPath(id))
+        && !exists(operationalPrivatePath(id)) && existsAfter(operationalPrivatePath(id));
+    }
+    function assignedOnOperationalHelp(data) {
+      return hasVolunteerGrant() && data.status == 'claimed' && data.claimedBy == request.auth.uid;
+    }
+    function setOperationalMessage(id) {
+      let help = get(operationalHelpPath(id)).data;
+      let data = request.resource.data;
+      let fields = data.diff(resource.data).affectedKeys();
+      return help.status == 'claimed' && getAfter(operationalHelpPath(id)).data.status == 'claimed'
+        && (ownsOperationalHelp(id) && fields.hasOnly(['residentMessage', 'residentMessageAt'])
+          && data.residentMessage is string && data.residentMessage.size() > 0 && data.residentMessage.size() <= 300
+          && data.residentMessageAt == request.time
+        || assignedOnOperationalHelp(help) && fields.hasOnly(['volunteerMessage', 'volunteerMessageAt'])
+          && data.volunteerMessage is string && data.volunteerMessage.size() > 0 && data.volunteerMessage.size() <= 300
+          && data.volunteerMessageAt == request.time);
+    }
+    match /operationalHelpPrivate/{id} {
+      allow get: if ownsOperationalHelp(id) || assignedOnOperationalHelp(get(operationalHelpPath(id)).data);
+      allow create: if residentAccount() && operationalId(id)
+        && request.resource.data.keys().hasOnly(['note', 'residentMessage', 'volunteerMessage', 'residentMessageAt', 'volunteerMessageAt'])
+        && request.resource.data.note is string && request.resource.data.note.size() <= 300
+        && request.resource.data.residentMessage == '' && request.resource.data.volunteerMessage == ''
+        && request.resource.data.residentMessageAt == null && request.resource.data.volunteerMessageAt == null
+        && !exists(operationalLinkPath(id)) && existsAfter(operationalLinkPath(id))
+        && !exists(operationalHelpPath(id)) && existsAfter(operationalHelpPath(id));
+      allow update: if setOperationalMessage(id);
+    }
+
+    function operationalMeetingPath(id) {
+      return /databases/$(database)/documents/operationalMeetings/$(id);
+    }
+    function meetingSeatPath(id) {
+      return /databases/$(database)/documents/users/$(request.auth.uid)/operationalMeetingSeats/$(id);
+    }
+    function enrollmentPath(id) {
+      return /databases/$(database)/documents/users/$(request.auth.uid)/operationalEnrollments/$(id);
+    }
+    function boundedBilingual(data, maxLength) {
+      return data is map && data.keys().hasOnly(['ru', 'kz'])
+        && data.ru is string && data.ru.size() > 0 && data.ru.size() <= maxLength
+        && data.kz is string && data.kz.size() > 0 && data.kz.size() <= maxLength;
+    }
+    function enrollableMeeting(data) {
+      return data.published == true && data.status == 'open'
+        && data.startsAt is timestamp && data.startsAt > request.time
+        && data.enrolledCount is int && data.enrolledCount >= 0
+        && data.capacity is int && data.capacity > data.enrolledCount;
+    }
+    function meetingIncrement(before, after) {
+      return enrollableMeeting(before) && after.enrolledCount == before.enrolledCount + 1;
+    }
+    function meetingDecrement(before, after) {
+      return before.enrolledCount is int && before.enrolledCount > 0
+        && after.enrolledCount == before.enrolledCount - 1;
+    }
+    function activeSeat(id) {
+      return exists(meetingSeatPath(id)) && get(meetingSeatPath(id)).data.status == 'enrolled';
+    }
+    function seatMatches(data, id, status) {
+      return data.operationId == id && data.status == status;
+    }
+    function counterMatchesSeat(id) {
+      let seat = getAfter(meetingSeatPath(id)).data;
+      let enrollment = getAfter(enrollmentPath(seat.operationId)).data;
+      return enrollment.meetingId == id && enrollment.status == seat.status
+        && (seat.status == 'enrolled' && !activeSeat(id) && !exists(enrollmentPath(seat.operationId))
+          && enrollment.createdAt == request.time && meetingIncrement(resource.data, request.resource.data)
+        || seat.status == 'cancelled' && activeSeat(id)
+          && get(meetingSeatPath(id)).data.operationId == seat.operationId
+          && get(enrollmentPath(seat.operationId)).data.status == 'enrolled'
+          && enrollment.cancelledAt == request.time && meetingDecrement(resource.data, request.resource.data));
+    }
+    match /operationalMeetings/{id} {
+      allow get, list: if resource.data.published == true;
+      allow update: if residentAccount() && request.resource.data.enrolledCount is int
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enrolledCount'])
+        && counterMatchesSeat(id);
+    }
+    function createOperationalEnrollment(data, id) {
+      let meetingPath = operationalMeetingPath(data.meetingId);
+      let meeting = get(meetingPath).data;
+      return data.keys().hasOnly(['meetingId', 'title', 'place', 'startsAt', 'status', 'createdAt', 'cancelledAt'])
+        && operationalId(data.meetingId) && data.status == 'enrolled'
+        && data.createdAt == request.time && data.cancelledAt == null
+        && boundedBilingual(data.title, 150) && boundedBilingual(data.place, 300)
+        && data.title == meeting.title && data.place == meeting.place && data.startsAt == meeting.startsAt
+        && meetingIncrement(meeting, getAfter(meetingPath).data)
+        && !activeSeat(data.meetingId)
+        && seatMatches(getAfter(meetingSeatPath(data.meetingId)).data, id, 'enrolled');
+    }
+    function cancelOperationalEnrollment(id) {
+      let meetingId = resource.data.meetingId;
+      let meetingPath = operationalMeetingPath(meetingId);
+      return resource.data.status == 'enrolled' && request.resource.data.status == 'cancelled'
+        && request.resource.data.cancelledAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
+        && seatMatches(get(meetingSeatPath(meetingId)).data, id, 'enrolled')
+        && seatMatches(getAfter(meetingSeatPath(meetingId)).data, id, 'cancelled')
+        && (!exists(meetingPath) || meetingDecrement(get(meetingPath).data, getAfter(meetingPath).data));
+    }
+    match /users/{uid}/operationalEnrollments/{id} {
+      allow get, list: if resident(uid);
+      allow create: if resident(uid) && operationalId(id) && createOperationalEnrollment(request.resource.data, id);
+      allow update: if resident(uid) && cancelOperationalEnrollment(id);
+    }
+    function claimOperationalSeat(data, meetingId) {
+      let path = enrollmentPath(data.operationId);
+      let application = getAfter(path).data;
+      return data.keys().hasOnly(['operationId', 'status'])
+        && operationalId(data.operationId) && data.status == 'enrolled'
+        && !exists(path) && application.meetingId == meetingId
+        && application.status == 'enrolled' && application.createdAt == request.time;
+    }
+    function releaseOperationalSeat(data, meetingId) {
+      let path = enrollmentPath(resource.data.operationId);
+      let application = getAfter(path).data;
+      return resource.data.status == 'enrolled' && data.status == 'cancelled'
+        && data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && application.meetingId == meetingId && application.status == 'cancelled'
+        && get(path).data.status == 'enrolled' && application.cancelledAt == request.time;
+    }
+    match /users/{uid}/operationalMeetingSeats/{meetingId} {
+      allow get: if resident(uid);
+      allow create: if resident(uid) && operationalId(meetingId) && claimOperationalSeat(request.resource.data, meetingId);
+      allow update: if resident(uid) && (resource.data.status == 'cancelled' && claimOperationalSeat(request.resource.data, meetingId)
+        || releaseOperationalSeat(request.resource.data, meetingId));
     }
     match /{document=**} { allow read, write: if false; }
   }
